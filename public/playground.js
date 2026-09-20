@@ -70,7 +70,7 @@ async function sendRequest() {
     const responseText = await response.text();
     elements.responseStatus.textContent = `${response.status} ${response.ok ? "received" : "upstream error"}`;
     elements.responseStatus.dataset.outcome = response.ok ? "success" : "error";
-    showResponse(prettyJson(responseText));
+    showResponse(responseText);
   } catch (error) {
     elements.responseStatus.textContent = "Network error";
     elements.responseStatus.dataset.outcome = "error";
@@ -86,7 +86,7 @@ async function sendRequest() {
 function showResponse(text) {
   elements.responseEmpty.hidden = true;
   elements.responseOutput.hidden = false;
-  elements.responseOutput.textContent = text;
+  renderJson(elements.responseOutput, text);
 }
 
 function setConnection(online) {
@@ -95,11 +95,14 @@ function setConnection(online) {
   elements.connectionLabel.textContent = online ? "Proxy ready" : "Proxy unavailable";
 }
 
-function prettyJson(text) {
+function renderJson(element, text) {
   try {
-    return JSON.stringify(JSON.parse(text), null, 2);
+    element.textContent = JSON.stringify(JSON.parse(text), null, 2);
+    element.classList.add("language-json");
+    window.Prism?.highlightElement(element);
   } catch {
-    return text;
+    element.classList.remove("language-json");
+    element.textContent = text;
   }
 }
 

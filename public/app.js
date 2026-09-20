@@ -50,7 +50,7 @@ function renderSummary(summary) {
     ? "All captured costs are known"
     : `${summary.unknownCostCount} exchange${summary.unknownCostCount === 1 ? " has" : "s have"} unknown cost`;
   elements.metricCost.nextElementSibling.textContent = summary.unknownCostCount === 0
-    ? "Versioned price at capture"
+    ? "Calculated from resolved model"
     : `Plus ${summary.unknownCostCount} unknown`;
   elements.metricLatency.textContent = summary.averageDurationMs === null
     ? "—"
@@ -129,10 +129,11 @@ function renderInspector(exchange) {
     fact("Price rule", exchange.pricingRuleId ?? exchange.costUnknownReason ?? "—"),
     fact("Request ID", exchange.upstreamRequestId ?? "—"),
   );
-  elements.requestPayload.textContent = prettyJson(exchange.requestBody);
-  elements.responsePayload.textContent = exchange.responseBody === null
-    ? exchange.errorMessage ?? "No response captured"
-    : prettyJson(exchange.responseBody);
+  renderJson(elements.requestPayload, exchange.requestBody ?? "No payload captured");
+  renderJson(
+    elements.responsePayload,
+    exchange.responseBody ?? exchange.errorMessage ?? "No response captured",
+  );
 }
 
 function fact(label, value) {
@@ -200,9 +201,15 @@ function dimensionText(dimensions, questionCount) {
   return [...values, questionLabel].filter(Boolean).join(" · ") || "Unlabeled exchange";
 }
 
-function prettyJson(text) {
-  if (text === null) return "No payload captured";
-  try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; }
+function renderJson(element, text) {
+  try {
+    element.textContent = JSON.stringify(JSON.parse(text), null, 2);
+    element.classList.add("language-json");
+    window.Prism?.highlightElement(element);
+  } catch {
+    element.classList.remove("language-json");
+    element.textContent = text;
+  }
 }
 
 function formatInteger(value) { return new Intl.NumberFormat().format(value); }

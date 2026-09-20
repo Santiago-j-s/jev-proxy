@@ -42,19 +42,19 @@
           <small id="metric-errors">No failures</small>
         </div>
         <div class="meter">
-          <span class="meter-label">Input signal</span>
+          <span class="meter-label">Input tokens</span>
           <strong id="metric-input">—</strong>
           <small id="metric-output">— output tokens</small>
         </div>
         <div class="meter meter-cost">
-          <span class="meter-label">Observed cost</span>
+          <span class="meter-label">Cost</span>
           <strong id="metric-cost">—</strong>
-          <small>Versioned price at capture</small>
+          <small>Calculated from resolved model</small>
         </div>
         <div class="meter">
-          <span class="meter-label">Mean transit</span>
+          <span class="meter-label">Average latency</span>
           <strong id="metric-latency">—</strong>
-          <small>End-to-end through proxy</small>
+          <small>Proxy round trip</small>
         </div>
       </section>
 
@@ -62,7 +62,6 @@
         <div class="stream-panel">
           <div class="panel-heading">
             <div>
-              <p class="kicker">Capture stream</p>
               <h2>Recent exchanges</h2>
             </div>
             <button class="quiet-button" id="refresh-button" type="button">Refresh</button>
@@ -90,14 +89,17 @@
               </div>
               <button class="replay-button" id="replay-button" type="button">Replay</button>
             </div>
-            <dl class="fact-grid" id="inspector-facts"></dl>
+            <details class="exchange-metadata">
+              <summary>Metadata</summary>
+              <dl class="fact-grid" id="inspector-facts"></dl>
+            </details>
             <section class="payload-block">
               <div class="payload-heading"><h3>Request</h3><button data-copy="request">Copy</button></div>
-              <pre id="request-payload"></pre>
+              <pre id="request-payload" class="language-json"></pre>
             </section>
             <section class="payload-block">
               <div class="payload-heading"><h3>Response</h3><button data-copy="response">Copy</button></div>
-              <pre id="response-payload"></pre>
+              <pre id="response-payload" class="language-json"></pre>
             </section>
           </div>
         </aside>
@@ -108,6 +110,8 @@
       <span>Bound to loopback</span>
       <span>Payloads stored locally in cleartext</span>
     </footer>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js" integrity="sha512-QXFMVAusM85vUYDaNgcYeU3rzSlc+bTV4JvkfJhjxSHlQEo+ig53BtnGkvFTiNJh8D+wv6uWAQ2vJaVmxe8d3w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>
