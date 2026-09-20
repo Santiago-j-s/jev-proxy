@@ -248,6 +248,28 @@ h2 { margin: 0; font: 500 23px/1.1 var(--display); letter-spacing: -0.025em; }
 .empty-state { padding: 70px 22px; text-align: center; color: var(--muted); }
 .empty-state p { font-family: var(--display); font-size: 22px; }
 .empty-state code { font: 10px/1.5 var(--utility); word-break: break-all; }
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+}
+.pagination button {
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: 9px/1 var(--utility);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.pagination button:hover:not(:disabled) { background: var(--fog); }
+.pagination button:disabled { cursor: default; opacity: 0.4; }
+.pagination span { color: var(--muted); font: 9px/1 var(--utility); text-transform: uppercase; letter-spacing: 0.06em; }
 
 .inspector { min-width: 0; background: #f2f5f4; }
 .inspector-idle { min-height: 620px; display: grid; place-items: center; align-content: center; gap: 34px; padding: 40px; color: var(--muted); text-align: center; }

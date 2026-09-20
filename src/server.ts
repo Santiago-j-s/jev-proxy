@@ -100,7 +100,8 @@ async function routeRequest(context: RouteContext): Promise<void> {
 
   if (request.method === "GET" && url.pathname === "/api/exchanges") {
     const limit = readLimit(url.searchParams.get("limit"));
-    writeJson(response, 200, { exchanges: store.listExchanges(limit) });
+    const offset = readOffset(url.searchParams.get("offset"));
+    writeJson(response, 200, { exchanges: store.listExchanges(limit, offset) });
     return;
   }
 
@@ -409,6 +410,14 @@ function readLimit(value: string | null): number {
   }
   const limit = Number(value);
   return Number.isInteger(limit) && limit >= 1 && limit <= 500 ? limit : 100;
+}
+
+function readOffset(value: string | null): number {
+  if (value === null) {
+    return 0;
+  }
+  const offset = Number(value);
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
 }
 
 function contentType(path: string): string {

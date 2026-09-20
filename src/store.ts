@@ -124,7 +124,7 @@ export class ExchangeStore {
       );
   }
 
-  listExchanges(limit = 100): readonly ExchangeListItem[] {
+  listExchanges(limit = 100, offset = 0): readonly ExchangeListItem[] {
     this.#pruneExpired();
     const rows = this.#withDimensions(`
       SELECT
@@ -140,7 +140,8 @@ export class ExchangeStore {
       GROUP BY e.id
       ORDER BY e.started_at DESC
       LIMIT ?
-    `, limit);
+      OFFSET ?
+    `, limit, offset);
 
     return rows.map(parseListItem);
   }

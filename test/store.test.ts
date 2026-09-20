@@ -98,3 +98,25 @@ test("retains only exchanges from the last seven days", () => {
   assert.equal(store.getExchange("boundary"), null);
   store.close();
 });
+
+test("lists exchanges with an offset", () => {
+  const store = new ExchangeStore(":memory:");
+  for (const [id, startedAt] of [
+    ["newest", new Date().toISOString()],
+    ["older", new Date(Date.now() - 1_000).toISOString()],
+  ]) {
+    store.beginExchange({
+      id,
+      startedAt,
+      method: "POST",
+      path: "/v1/systemone",
+      requestedModel: "jev-1.13.0",
+      questionCount: 1,
+      requestBody: "{}",
+      dimensions: {},
+    });
+  }
+
+  assert.deepEqual(store.listExchanges(1, 1).map((exchange) => exchange.id), ["older"]);
+  store.close();
+});

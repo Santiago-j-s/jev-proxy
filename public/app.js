@@ -12,6 +12,10 @@ const elements = {
   responsePayload: document.querySelector("#response-payload"),
   replayButton: document.querySelector("#replay-button"),
   refreshButton: document.querySelector("#refresh-button"),
+  pagination: document.querySelector("#pagination"),
+  previousPage: document.querySelector("#previous-page"),
+  nextPage: document.querySelector("#next-page"),
+  pageStatus: document.querySelector("#page-status"),
   metricExchanges: document.querySelector("#metric-exchanges"),
   metricErrors: document.querySelector("#metric-errors"),
   metricInput: document.querySelector("#metric-input"),
@@ -22,15 +26,28 @@ const elements = {
 
 let selectedExchangeId = null;
 let selectedExchange = null;
+const pageSize = 25;
+let pageOffset = (readPageNumber() - 1) * pageSize;
+writePageNumber(readPageNumber(), true);
 
 async function refresh() {
   try {
     const [summary, list] = await Promise.all([
       getJson("/api/summary"),
-      getJson("/api/exchanges?limit=100"),
+      getJson(`/api/exchanges?limit=${pageSize}&offset=${pageOffset}`),
     ]);
+    const pageCount = Math.max(1, Math.ceil(summary.exchangeCount / pageSize));
+    const currentPage = Math.floor(pageOffset / pageSize) + 1;
+    if (currentPage > pageCount) {
+      pageOffset = (pageCount - 1) * pageSize;
+      writePageNumber(pageCount, true);
+      await refresh();
+      return;
+    }
     renderSummary(summary);
+    const hasNextPage = pageOffset + list.exchanges.length < summary.exchangeCount;
     renderExchanges(list.exchanges);
+    renderPagination(summary.exchangeCount, hasNextPage);
     setConnection(true);
   } catch (error) {
     setConnection(false);
@@ -60,6 +77,36 @@ function renderSummary(summary) {
 function renderExchanges(exchanges) {
   elements.emptyState.hidden = exchanges.length !== 0;
   elements.exchangeList.replaceChildren(...exchanges.map(exchangeRow));
+}
+
+function renderPagination(exchangeCount, hasNextPage) {
+  const hasPreviousPage = pageOffset > 0;
+  const pageCount = Math.max(1, Math.ceil(exchangeCount / pageSize));
+  const currentPage = Math.floor(pageOffset / pageSize) + 1;
+  const firstExchange = pageOffset + 1;
+  const lastExchange = Math.min(pageOffset + pageSize, exchangeCount);
+  elements.pagination.hidden = exchangeCount === 0;
+  elements.previousPage.disabled = !hasPreviousPage;
+  elements.nextPage.disabled = !hasNextPage;
+  elements.pageStatus.textContent = `${formatInteger(firstExchange)}–${formatInteger(lastExchange)} of ${formatInteger(exchangeCount)} · Page ${currentPage} of ${pageCount}`;
+}
+
+async function changePage(direction) {
+  pageOffset = Math.max(0, pageOffset + direction * pageSize);
+  writePageNumber(Math.floor(pageOffset / pageSize) + 1, false);
+  await refresh();
+  elements.exchangeList.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function readPageNumber() {
+  const value = Number(new URL(window.location.href).searchParams.get("page"));
+  return Number.isSafeInteger(value) && value >= 1 ? value : 1;
+}
+
+function writePageNumber(page, replace) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("page", String(page));
+  window.history[replace ? "replaceState" : "pushState"]({}, "", url);
 }
 
 function exchangeRow(exchange) {
@@ -224,6 +271,12 @@ function formatUsd(nanoUsd) {
 }
 
 elements.refreshButton.addEventListener("click", () => void refresh());
+elements.previousPage.addEventListener("click", () => void changePage(-1));
+elements.nextPage.addEventListener("click", () => void changePage(1));
+window.addEventListener("popstate", () => {
+  pageOffset = (readPageNumber() - 1) * pageSize;
+  void refresh();
+});
 elements.replayButton.addEventListener("click", () => void replaySelected());
 document.querySelectorAll("[data-copy]").forEach((button) => {
   button.addEventListener("click", () => void copyPayload(button.dataset.copy, button));
