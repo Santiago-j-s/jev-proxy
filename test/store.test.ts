@@ -10,7 +10,10 @@ import { ExchangeStore } from "../src/store.js";
 test("stores a complete exchange and exact dimensions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "jev-proxy-store-"));
   const databasePath = join(directory, "capture.sqlite");
-  const store = new ExchangeStore(databasePath);
+  const store = new ExchangeStore(
+    databasePath,
+    () => new Date("2026-09-20T12:00:00.000Z"),
+  );
   const id = "exchange-1";
 
   store.beginExchange({
@@ -71,5 +74,27 @@ test("an empty store has a zero summary", () => {
     unknownCostCount: 0,
     averageDurationMs: null,
   });
+  store.close();
+});
+
+test("retains only exchanges from the last seven days", () => {
+  let now = new Date("2026-09-20T12:00:00.000Z");
+  const store = new ExchangeStore(":memory:", () => now);
+
+  store.beginExchange({
+    id: "boundary",
+    startedAt: "2026-09-13T12:00:00.000Z",
+    method: "POST",
+    path: "/v1/systemone",
+    requestedModel: "jev-1.13.0",
+    questionCount: 1,
+    requestBody: "{}",
+    dimensions: { app: "retention-test" },
+  });
+  assert.equal(store.listExchanges().length, 1);
+
+  now = new Date("2026-09-20T12:00:00.001Z");
+  assert.deepEqual(store.listExchanges(), []);
+  assert.equal(store.getExchange("boundary"), null);
   store.close();
 });

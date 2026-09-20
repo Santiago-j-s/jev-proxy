@@ -86,11 +86,7 @@ During development, use `npm run dev`. To make the command available globally fr
 
 ## Payload retention
 
-There is currently no automatic deletion. Remove the SQLite database while the proxy is stopped to erase captured data:
-
-```bash
-rm ~/.jev-proxy/jev-proxy.sqlite*
-```
+SQLite retains exchanges for seven days. Expired exchanges and their dimensions are deleted automatically when the store opens and during normal reads and writes.
 
 Do not share an export without reviewing it. Request state, question criteria, and answers are all included by design.
 

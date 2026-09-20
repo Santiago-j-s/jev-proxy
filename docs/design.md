@@ -77,6 +77,8 @@ The application stores cleartext model inputs and outputs. Its security model is
 - create the database directory with user-only permissions;
 - make retention and deletion explicit to the user.
 
+Exchange payloads are retained for seven days from their start time. Cleanup runs when the store opens and during normal reads and writes, so the same retention boundary applies to the dashboard, CLI, exports, and persisted rows. Deleting an exchange cascades to its dimensions.
+
 This is suitable for personal local debugging. Sharing, team access, or remote deployment requires a new design that introduces authentication, payload redaction, encryption, retention limits, and auditable access control.
 
 ## Dashboard direction
@@ -87,7 +89,7 @@ The interface has one job: move quickly from aggregate behavior to the exact req
 
 ## Deliberate limits in the first version
 
-- no automatic retention or payload redaction;
+- no payload redaction;
 - no distributed or multi-user deployment;
 - no request-body search;
 - no inferred grouping of retries;

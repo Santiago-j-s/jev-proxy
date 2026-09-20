@@ -28,6 +28,8 @@ One row represents one request received at the System One boundary.
 
 The original bodies remain authoritative. Metadata is a parsed projection for navigation and aggregation.
 
+Rows are retained for seven days from `started_at`. The store removes older exchanges when it opens and during normal reads and writes. Foreign-key cascading removes their dimensions in the same operation.
+
 ## `exchange_dimensions`
 
 Dimensions are caller-provided labels such as app, feature, run, dataset, or branch. The `(exchange_id, name)` primary key prevents a single exchange from claiming two values for the same dimension.

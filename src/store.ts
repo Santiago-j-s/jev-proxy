@@ -12,11 +12,14 @@ import type {
 import { PRICING_RULES } from "./pricing.js";
 
 type SqlRow = Record<string, unknown>;
+const RETENTION_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
 
 export class ExchangeStore {
   readonly #database: DatabaseSync;
+  readonly #now: () => Date;
 
-  constructor(databasePath: string) {
+  constructor(databasePath: string, now: () => Date = () => new Date()) {
+    this.#now = now;
     if (databasePath !== ":memory:") {
       mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
     }
@@ -27,6 +30,7 @@ export class ExchangeStore {
     }
     this.#database.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
     this.#migrate();
+    this.#pruneExpired();
   }
 
   close(): void {
@@ -34,6 +38,7 @@ export class ExchangeStore {
   }
 
   beginExchange(exchange: NewExchange): void {
+    this.#pruneExpired();
     this.#database.exec("BEGIN IMMEDIATE");
     try {
       this.#database
@@ -120,6 +125,7 @@ export class ExchangeStore {
   }
 
   listExchanges(limit = 100): readonly ExchangeListItem[] {
+    this.#pruneExpired();
     const rows = this.#withDimensions(`
       SELECT
         e.id, e.started_at, e.duration_ms, e.outcome, e.http_status,
@@ -140,6 +146,7 @@ export class ExchangeStore {
   }
 
   getExchange(id: string): ExchangeDetail | null {
+    this.#pruneExpired();
     const row = this.#withDimensions(`
       SELECT
         e.*,
@@ -157,6 +164,7 @@ export class ExchangeStore {
   }
 
   summarize(): UsageSummary {
+    this.#pruneExpired();
     const row = this.#database.prepare(`
       SELECT
         COUNT(*) AS exchange_count,
@@ -187,6 +195,7 @@ export class ExchangeStore {
   }
 
   exportExchanges(): readonly ExchangeDetail[] {
+    this.#pruneExpired();
     const rows = this.#withDimensions(`
       SELECT
         e.*,
@@ -205,6 +214,11 @@ export class ExchangeStore {
   #withDimensions(sql: string, ...parameters: readonly (string | number)[]): SqlRow[] {
     const statement: StatementSync = this.#database.prepare(sql);
     return statement.all(...parameters);
+  }
+
+  #pruneExpired(): void {
+    const cutoff = new Date(this.#now().getTime() - RETENTION_MILLISECONDS).toISOString();
+    this.#database.prepare("DELETE FROM exchanges WHERE started_at < ?").run(cutoff);
   }
 
   #migrate(): void {
