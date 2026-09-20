@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Captures — Jev Proxy</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Jev Proxy home">
+        <span class="wordmark-mark" aria-hidden="true">J</span>
+        <span>Jev Proxy</span>
+      </a>
+      <div class="masthead-actions">
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="/" aria-current="page">Captures</a>
+          <a href="/playground">Playground</a>
+        </nav>
+        <div class="connection" id="connection">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connection-label">Connecting</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="signal-header" aria-labelledby="page-title">
+        <div>
+          <h1 id="page-title">Captured requests</h1>
+        </div>
+        <p class="intro">
+          Inspect System One payloads, responses, usage, latency, and cost.
+        </p>
+      </section>
+
+      <section class="meter-strip" aria-label="Usage summary">
+        <div class="meter">
+          <span class="meter-label">Exchanges</span>
+          <strong id="metric-exchanges">—</strong>
+          <small id="metric-errors">No failures</small>
+        </div>
+        <div class="meter">
+          <span class="meter-label">Input signal</span>
+          <strong id="metric-input">—</strong>
+          <small id="metric-output">— output tokens</small>
+        </div>
+        <div class="meter meter-cost">
+          <span class="meter-label">Observed cost</span>
+          <strong id="metric-cost">—</strong>
+          <small>Versioned price at capture</small>
+        </div>
+        <div class="meter">
+          <span class="meter-label">Mean transit</span>
+          <strong id="metric-latency">—</strong>
+          <small>End-to-end through proxy</small>
+        </div>
+      </section>
+
+      <section class="workbench">
+        <div class="stream-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="kicker">Capture stream</p>
+              <h2>Recent exchanges</h2>
+            </div>
+            <button class="quiet-button" id="refresh-button" type="button">Refresh</button>
+          </div>
+          <div class="stream-labels" aria-hidden="true">
+            <span>When / status</span><span>Model / dimensions</span><span>Usage</span>
+          </div>
+          <ol class="exchange-list" id="exchange-list" aria-live="polite"></ol>
+          <div class="empty-state" id="empty-state" hidden>
+            <p>No exchanges captured yet.</p>
+            <code>TYPESAFE_BASE_URL=http://127.0.0.1:7788</code>
+          </div>
+        </div>
+
+        <aside class="inspector" id="inspector" aria-labelledby="inspector-title">
+          <div class="inspector-idle" id="inspector-idle">
+            <div class="scope" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p>Select an exchange to inspect its complete request and response.</p>
+          </div>
+          <div id="inspector-content" hidden>
+            <div class="panel-heading inspector-heading">
+              <div>
+                <p class="kicker" id="inspector-status">Exchange</p>
+                <h2 id="inspector-title">Details</h2>
+              </div>
+              <button class="replay-button" id="replay-button" type="button">Replay</button>
+            </div>
+            <dl class="fact-grid" id="inspector-facts"></dl>
+            <section class="payload-block">
+              <div class="payload-heading"><h3>Request</h3><button data-copy="request">Copy</button></div>
+              <pre id="request-payload"></pre>
+            </section>
+            <section class="payload-block">
+              <div class="payload-heading"><h3>Response</h3><button data-copy="response">Copy</button></div>
+              <pre id="response-payload"></pre>
+            </section>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer>
+      <span>Bound to loopback</span>
+      <span>Payloads stored locally in cleartext</span>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

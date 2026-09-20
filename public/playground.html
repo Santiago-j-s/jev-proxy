@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Playground — Jev Proxy</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Jev Proxy home">
+        <span class="wordmark-mark" aria-hidden="true">J</span>
+        <span>Jev Proxy</span>
+      </a>
+      <div class="masthead-actions">
+        <nav class="site-nav" aria-label="Primary navigation">
+          <a href="/">Captures</a>
+          <a href="/playground" aria-current="page">Playground</a>
+        </nav>
+        <div class="connection" id="connection">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <span id="connection-label">Connecting</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="playground-main">
+      <section class="playground-header" aria-labelledby="page-title">
+        <div>
+          <h1 id="page-title">System One playground</h1>
+        </div>
+        <p class="intro">
+          Send raw JSON to TypeSafe through the proxy. Requests are live and captured.
+        </p>
+      </section>
+
+      <section class="playground" aria-label="System One request playground">
+        <div class="editor-panel">
+          <div class="panel-heading playground-panel-heading">
+            <div>
+              <p class="kicker">POST /v1/systemone</p>
+              <h2>Request</h2>
+            </div>
+            <span class="live-call-label">Uses real API credits</span>
+          </div>
+          <label class="editor-label" for="request-editor">JSON body</label>
+          <textarea id="request-editor" class="json-editor" spellcheck="false" autocomplete="off" aria-describedby="request-error"></textarea>
+          <div class="credential-row">
+            <label for="api-key">TypeSafe API key</label>
+            <input id="api-key" type="password" autocomplete="off" placeholder="ts_…" />
+            <span>Used for this request only; never captured.</span>
+          </div>
+          <div class="editor-actions">
+            <p class="inline-error" id="request-error" role="alert"></p>
+            <button class="send-button" id="send-button" type="button">Send request</button>
+          </div>
+        </div>
+
+        <div class="response-panel" aria-live="polite">
+          <div class="panel-heading playground-panel-heading">
+            <div>
+              <p class="kicker" id="response-status">Awaiting request</p>
+              <h2>Response</h2>
+            </div>
+            <span class="response-duration" id="response-duration"></span>
+          </div>
+          <div class="response-empty" id="response-empty">
+            <div class="scope" aria-hidden="true"><span></span><span></span><span></span></div>
+            <p>The upstream response will appear here unchanged.</p>
+          </div>
+          <pre class="response-output" id="response-output" hidden></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Real TypeSafe requests</span>
+      <span>Captured locally in cleartext</span>
+    </footer>
+    <script type="module" src="/playground.js"></script>
+  </body>
+</html>
