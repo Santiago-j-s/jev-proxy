@@ -372,7 +372,7 @@ async function serveDashboard(response: ServerResponse, pathname: string): Promi
     : pathname === "/playground"
       ? "playground.html"
       : pathname.slice(1);
-  if (!new Set(["index.html", "playground.html", "app.js", "playground.js", "styles.css"]).has(relativePath)) {
+  if (!new Set(["index.html", "playground.html", "app.js", "playground.js", "codemirror.js", "styles.css"]).has(relativePath)) {
     writeJson(response, 404, { error: "Not found" });
     return;
   }

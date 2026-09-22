@@ -1,3 +1,5 @@
+import { basicSetup, EditorView, keymap, json, jsonParseLinter, linter } from "/codemirror.js";
+
 const sampleRequest = {
   model: "jev-1.13.0",
   state: {
@@ -24,7 +26,27 @@ const elements = {
   responseOutput: document.querySelector("#response-output"),
 };
 
-elements.editor.value = JSON.stringify(sampleRequest, null, 2);
+const editor = new EditorView({
+  doc: JSON.stringify(sampleRequest, null, 2),
+  extensions: [
+    basicSetup,
+    json(),
+    linter(jsonParseLinter()),
+    EditorView.lineWrapping,
+    EditorView.contentAttributes.of({
+      "aria-labelledby": "request-label",
+      "aria-describedby": "request-error",
+    }),
+    keymap.of([{
+      key: "Mod-Enter",
+      run: () => {
+        void sendRequest();
+        return true;
+      },
+    }]),
+  ],
+  parent: elements.editor,
+});
 
 async function checkConnection() {
   try {
@@ -39,10 +61,10 @@ async function sendRequest() {
   elements.error.textContent = "";
   let body;
   try {
-    body = JSON.stringify(JSON.parse(elements.editor.value));
+    body = JSON.stringify(JSON.parse(editor.state.doc.toString()));
   } catch {
     elements.error.textContent = "Fix the JSON before sending.";
-    elements.editor.focus();
+    editor.focus();
     return;
   }
 
@@ -113,11 +135,4 @@ function formatDuration(milliseconds) {
 }
 
 elements.sendButton.addEventListener("click", () => void sendRequest());
-elements.editor.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-    event.preventDefault();
-    void sendRequest();
-  }
-});
-
 void checkConnection();

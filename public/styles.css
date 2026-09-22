@@ -366,6 +366,7 @@ pre {
   background: #d09935;
 }
 .editor-label {
+  margin: 0;
   padding: 13px 18px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
@@ -377,17 +378,16 @@ pre {
   width: 100%;
   min-height: 430px;
   flex: 1;
-  resize: vertical;
-  padding: 20px;
-  border: 0;
   border-bottom: 1px solid var(--line);
-  border-radius: 0;
   background: #fbfcfb;
   color: #27343a;
-  font: 12px/1.7 var(--utility);
-  tab-size: 2;
+  overflow: hidden;
 }
-.json-editor:focus { outline-offset: -3px; }
+.json-editor .cm-editor { height: 100%; background: transparent; }
+.json-editor .cm-scroller { font: 12px/1.7 var(--utility); }
+.json-editor .cm-content { padding: 20px 0; caret-color: var(--ink); }
+.json-editor .cm-gutters { padding-block: 20px; border-right: 1px solid var(--line); background: #f2f5f4; color: var(--muted); }
+.json-editor .cm-editor.cm-focused { outline: 3px solid color-mix(in srgb, var(--signal) 55%, transparent); outline-offset: -3px; }
 .credential-row {
   display: grid;
   grid-template-columns: auto minmax(140px, 1fr);

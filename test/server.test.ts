@@ -55,6 +55,11 @@ test("forwards a Jev request and captures its full exchange without credentials"
   assert.match(playgroundSource, /state:\s*\{/);
   assert.doesNotMatch(playgroundSource, /subject:\s*/);
 
+  const editorBundle = await fetch(new URL("/codemirror.js", proxy.url));
+  assert.equal(editorBundle.status, 200);
+  assert.match(editorBundle.headers.get("content-type") ?? "", /javascript/);
+  assert.ok((await editorBundle.text()).length > 0);
+
   const requestBody = JSON.stringify({
     state: "private state",
     model: "jev-latest",
