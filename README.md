@@ -11,12 +11,11 @@ It is intentionally a personal debugging tool:
 
 ## Start capturing
 
-Jev Proxy requires Node.js 24 or later.
+Jev Proxy requires Bun 1.3.14 or later.
 
 ```bash
-npm install
-npm run build
-TYPESAFE_API_KEY=ts_... npm start
+bun install
+TYPESAFE_API_KEY=ts_... bun run start
 ```
 
 The proxy and dashboard start at `http://127.0.0.1:7788`. The raw JSON playground is available at `http://127.0.0.1:7788/playground`; its requests make real TypeSafe calls and are recorded like any other exchange.
@@ -70,7 +69,7 @@ jev-proxy show <id>   Print a complete exchange
 jev-proxy export      Export every exchange as JSON Lines
 ```
 
-During development, use `npm run dev`. To make the command available globally from this checkout, run `npm link` after building.
+During development, use `bun run dev`. To make the command available globally from this checkout, run `bun link`.
 
 ## Configuration
 
@@ -105,9 +104,8 @@ Unknown models produce an unknown cost rather than `$0`. See `docs/design.md` fo
 ## Verification
 
 ```bash
-npm run check
-npm test
-npm run build
+bun run check
+bun test
 ```
 
 ## Documentation

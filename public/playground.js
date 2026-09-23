@@ -1,4 +1,4 @@
-import { basicSetup, EditorView, keymap, json, jsonLanguage, jsonParseLinter, linter, Prec, systemOneCompletion } from "/codemirror.js";
+import { basicSetup, EditorView, keymap, json, jsonLanguage, jsonParseLinter, linter, Prec, systemOneCompletion } from "../browser/codemirror.js";
 
 const sampleRequest = {
   model: "jev-1.13.0",

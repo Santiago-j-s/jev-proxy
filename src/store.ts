@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DatabaseSync, type StatementSync } from "node:sqlite";
+import { Database } from "bun:sqlite";
 
 import type {
   ExchangeCompletion,
@@ -15,7 +15,7 @@ type SqlRow = Record<string, unknown>;
 const RETENTION_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
 
 export class ExchangeStore {
-  readonly #database: DatabaseSync;
+  readonly #database: Database;
   readonly #now: () => Date;
 
   constructor(databasePath: string, now: () => Date = () => new Date()) {
@@ -24,7 +24,7 @@ export class ExchangeStore {
       mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
     }
 
-    this.#database = new DatabaseSync(databasePath);
+    this.#database = new Database(databasePath);
     if (databasePath !== ":memory:") {
       chmodSync(databasePath, 0o600);
     }
@@ -34,7 +34,7 @@ export class ExchangeStore {
   }
 
   close(): void {
-    this.#database.close();
+    this.#database.close(true);
   }
 
   beginExchange(exchange: NewExchange): void {
@@ -42,7 +42,7 @@ export class ExchangeStore {
     this.#database.exec("BEGIN IMMEDIATE");
     try {
       this.#database
-        .prepare(`
+        .query(`
           INSERT INTO exchanges (
             id, started_at, outcome, method, path, requested_model,
             question_count, request_body
@@ -58,7 +58,7 @@ export class ExchangeStore {
           exchange.requestBody,
         );
 
-      const insertDimension = this.#database.prepare(`
+      const insertDimension = this.#database.query(`
         INSERT INTO exchange_dimensions (exchange_id, name, value)
         VALUES (?, ?, ?)
       `);
@@ -75,7 +75,7 @@ export class ExchangeStore {
   completeExchange(id: string, completion: ExchangeCompletion): void {
     if (completion.outcome === "network_error") {
       this.#database
-        .prepare(`
+        .query(`
           UPDATE exchanges SET
             finished_at = ?, duration_ms = ?, outcome = 'network_error',
             error_message = ?
@@ -98,7 +98,7 @@ export class ExchangeStore {
       : null;
 
     this.#database
-      .prepare(`
+      .query(`
         UPDATE exchanges SET
           finished_at = ?, duration_ms = ?, outcome = ?, http_status = ?,
           resolved_model = ?, response_body = ?, upstream_request_id = ?,
@@ -166,7 +166,7 @@ export class ExchangeStore {
 
   summarize(): UsageSummary {
     this.#pruneExpired();
-    const row = this.#database.prepare(`
+    const row = this.#database.query<SqlRow, []>(`
       SELECT
         COUNT(*) AS exchange_count,
         COALESCE(SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END), 0) AS success_count,
@@ -179,7 +179,7 @@ export class ExchangeStore {
       FROM exchanges
     `).get();
 
-    if (row === undefined) {
+    if (row === null) {
       throw new Error("Summary query returned no row");
     }
 
@@ -213,13 +213,12 @@ export class ExchangeStore {
   }
 
   #withDimensions(sql: string, ...parameters: readonly (string | number)[]): SqlRow[] {
-    const statement: StatementSync = this.#database.prepare(sql);
-    return statement.all(...parameters);
+    return this.#database.query<SqlRow, (string | number)[]>(sql).all(...parameters);
   }
 
   #pruneExpired(): void {
     const cutoff = new Date(this.#now().getTime() - RETENTION_MILLISECONDS).toISOString();
-    this.#database.prepare("DELETE FROM exchanges WHERE started_at < ?").run(cutoff);
+    this.#database.query("DELETE FROM exchanges WHERE started_at < ?").run(cutoff);
   }
 
   #migrate(): void {
@@ -271,7 +270,7 @@ export class ExchangeStore {
       );
     `);
 
-    const insertPricingRule = this.#database.prepare(`
+    const insertPricingRule = this.#database.query(`
       INSERT OR IGNORE INTO pricing_rules (
         id, model, input_nano_usd_per_token, output_nano_usd_per_token
       ) VALUES (?, ?, ?, ?)

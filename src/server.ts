@@ -1,17 +1,14 @@
-import { readFile } from "node:fs/promises";
-import { createServer, type IncomingHttpHeaders, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { dirname, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
+import dashboard from "../public/index.html";
+import playground from "../public/playground.html";
+
 import type { Config } from "./config.js";
-import type { JsonValue } from "./domain.js";
 import { calculateCost } from "./pricing.js";
 import { parseJson, readRequestFacts, readResponseFacts } from "./protocol.js";
 import { ExchangeStore } from "./store.js";
 
 const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
-const PUBLIC_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "../public");
 const PRIVATE_DIMENSION_HEADERS = new Set([
   "x-jev-app",
   "x-jev-feature",
@@ -33,92 +30,77 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 export type RunningProxy = {
-  readonly server: Server;
+  readonly server: Bun.Server<undefined>;
   readonly url: URL;
   close(): Promise<void>;
 };
 
 export async function startProxy(config: Config): Promise<RunningProxy> {
   const store = new ExchangeStore(config.databasePath);
-  const server = createServer((request, response) => {
-    routeRequest({ request, response, config, store }).catch((error: unknown) => {
-      logDiagnostic("request_handler_failed", error);
-      if (!response.headersSent) {
-        writeJson(response, 500, { error: "The local proxy could not handle this request" });
-      } else {
-        response.destroy();
-      }
+  let server: Bun.Server<undefined>;
+  try {
+    server = Bun.serve({
+      hostname: config.host,
+      port: config.port,
+      development: process.env.NODE_ENV === "development",
+      routes: { "/": dashboard, "/playground": playground },
+      fetch(request) {
+        return routeRequest({ request, config, store }).catch((error: unknown) => {
+          logDiagnostic("request_handler_failed", error);
+          return Response.json({ error: "The local proxy could not handle this request" }, { status: 500 });
+        });
+      },
     });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(config.port, config.host, () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
-
-  const address = server.address();
-  if (address === null || typeof address === "string") {
-    throw new Error("Proxy did not receive a TCP address");
+  } catch (error) {
+    store.close();
+    throw error;
   }
 
-  const url = new URL(`http://${formatHost(config.host)}:${address.port}`);
   return {
     server,
-    url,
+    url: server.url,
     async close() {
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => error === undefined ? resolve() : reject(error));
-      });
+      await server.stop();
       store.close();
     },
   };
 }
 
 type RouteContext = {
-  readonly request: IncomingMessage;
-  readonly response: ServerResponse;
+  readonly request: Request;
   readonly config: Config;
   readonly store: ExchangeStore;
 };
 
-async function routeRequest(context: RouteContext): Promise<void> {
-  const { request, response, store } = context;
-  const url = new URL(request.url ?? "/", "http://localhost");
+async function routeRequest(context: RouteContext): Promise<Response> {
+  const { request, store } = context;
+  const url = new URL(request.url);
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    writeJson(response, 200, { status: "ok" });
-    return;
+    return Response.json({ status: "ok" });
   }
 
   if (request.method === "GET" && url.pathname === "/api/summary") {
-    writeJson(response, 200, store.summarize());
-    return;
+    return Response.json(store.summarize());
   }
 
   if (request.method === "GET" && url.pathname === "/api/exchanges") {
     const limit = readLimit(url.searchParams.get("limit"));
     const offset = readOffset(url.searchParams.get("offset"));
-    writeJson(response, 200, { exchanges: store.listExchanges(limit, offset) });
-    return;
+    return Response.json({ exchanges: store.listExchanges(limit, offset) });
   }
 
   const exchangeRoute = matchExchangeRoute(url.pathname);
   if (request.method === "GET" && exchangeRoute?.action === "detail") {
     const exchange = store.getExchange(exchangeRoute.id);
     if (exchange === null) {
-      writeJson(response, 404, { error: "Exchange not found" });
-      return;
+      return Response.json({ error: "Exchange not found" }, { status: 404 });
     }
-    writeJson(response, 200, exchange);
-    return;
+    return Response.json(exchange);
   }
 
   if (request.method === "POST" && exchangeRoute?.action === "replay") {
-    await replayExchange(context, exchangeRoute.id);
-    return;
+    return replayExchange(context, exchangeRoute.id);
   }
 
   if (request.method === "POST" && url.pathname === "/v1/systemone") {
@@ -130,23 +112,21 @@ async function routeRequest(context: RouteContext): Promise<void> {
       incomingHeaders: request.headers,
       dimensions: readDimensions(request.headers),
     });
-    writeUpstreamResponse(response, result);
-    return;
+    return upstreamResponse(result);
   }
 
   if (url.pathname.startsWith("/v1/")) {
-    await passthrough(context, url);
-    return;
+    return passthrough(context, url);
   }
 
-  await serveDashboard(response, url.pathname);
+  return Response.json({ error: "Not found" }, { status: 404 });
 }
 
 type CaptureInput = {
   readonly config: Config;
   readonly store: ExchangeStore;
   readonly body: Buffer;
-  readonly incomingHeaders: IncomingHttpHeaders;
+  readonly incomingHeaders: Headers;
   readonly dimensions: Readonly<Record<string, string>>;
 };
 
@@ -232,35 +212,32 @@ async function captureSystemOne(input: CaptureInput): Promise<UpstreamResult> {
   }
 }
 
-async function replayExchange(context: RouteContext, id: string): Promise<void> {
+async function replayExchange(context: RouteContext, id: string): Promise<Response> {
   const exchange = context.store.getExchange(id);
   if (exchange === null) {
-    writeJson(context.response, 404, { error: "Exchange not found" });
-    return;
+    return Response.json({ error: "Exchange not found" }, { status: 404 });
   }
   if (exchange.requestBody === null) {
-    writeJson(context.response, 409, { error: "This exchange has no request body to replay" });
-    return;
+    return Response.json({ error: "This exchange has no request body to replay" }, { status: 409 });
   }
   if (context.config.apiKey === null) {
-    writeJson(context.response, 409, {
+    return Response.json({
       error: "Replay requires TYPESAFE_API_KEY on the proxy process",
-    });
-    return;
+    }, { status: 409 });
   }
 
   const result = await captureSystemOne({
     config: context.config,
     store: context.store,
     body: Buffer.from(exchange.requestBody),
-    incomingHeaders: { "content-type": "application/json" },
+    incomingHeaders: new Headers({ "content-type": "application/json" }),
     dimensions: { ...exchange.dimensions, replay_of: id },
   });
-  writeUpstreamResponse(context.response, result);
+  return upstreamResponse(result);
 }
 
-async function passthrough(context: RouteContext, requestUrl: URL): Promise<void> {
-  const method = context.request.method ?? "GET";
+async function passthrough(context: RouteContext, requestUrl: URL): Promise<Response> {
+  const method = context.request.method;
   const body = method === "GET" || method === "HEAD"
     ? undefined
     : await readRequestBody(context.request);
@@ -273,28 +250,27 @@ async function passthrough(context: RouteContext, requestUrl: URL): Promise<void
   if (body !== undefined) {
     requestInit.body = new Uint8Array(body);
   }
-  const upstreamResponse = await fetch(upstreamUrl, requestInit);
-  writeUpstreamResponse(context.response, {
-    status: upstreamResponse.status,
-    headers: upstreamResponse.headers,
-    body: Buffer.from(await upstreamResponse.arrayBuffer()),
-  });
+  const response = await fetch(upstreamUrl, requestInit);
+  return upstreamResponse({
+    status: response.status,
+    headers: response.headers,
+    body: Buffer.from(await response.arrayBuffer()),
+  }, method === "HEAD");
 }
 
 function buildUpstreamHeaders(
-  incoming: IncomingHttpHeaders,
+  incoming: Headers,
   configuredApiKey: string | null,
 ): Headers {
   const headers = new Headers();
-  for (const [name, value] of Object.entries(incoming)) {
+  for (const [name, value] of incoming) {
     if (
-      value === undefined ||
       HOP_BY_HOP_HEADERS.has(name) ||
       PRIVATE_DIMENSION_HEADERS.has(name)
     ) {
       continue;
     }
-    headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+    headers.set(name, value);
   }
   if (configuredApiKey !== null) {
     headers.set("authorization", `Bearer ${configuredApiKey}`);
@@ -302,14 +278,19 @@ function buildUpstreamHeaders(
   return headers;
 }
 
-function readDimensions(headers: IncomingHttpHeaders): Readonly<Record<string, string>> {
+function readDimensions(headers: Headers): Readonly<Record<string, string>> {
   const dimensions: Record<string, string> = {};
-  copyHeaderDimension(headers, dimensions, "x-jev-app", "app");
-  copyHeaderDimension(headers, dimensions, "x-jev-feature", "feature");
-  copyHeaderDimension(headers, dimensions, "x-jev-run", "run");
+  for (const [header, dimension] of [
+    ["x-jev-app", "app"],
+    ["x-jev-feature", "feature"],
+    ["x-jev-run", "run"],
+  ] as const) {
+    const value = headers.get(header)?.trim();
+    if (value) dimensions[dimension] = value;
+  }
 
-  const tags = headers["x-jev-tags"];
-  if (typeof tags === "string") {
+  const tags = headers.get("x-jev-tags");
+  if (tags !== null) {
     for (const entry of tags.split(",")) {
       const separator = entry.indexOf("=");
       if (separator <= 0) {
@@ -325,25 +306,18 @@ function readDimensions(headers: IncomingHttpHeaders): Readonly<Record<string, s
   return dimensions;
 }
 
-function copyHeaderDimension(
-  headers: IncomingHttpHeaders,
-  target: Record<string, string>,
-  header: string,
-  dimension: string,
-): void {
-  const value = headers[header];
-  if (typeof value === "string" && value.trim() !== "") {
-    target[dimension] = value.trim();
-  }
-}
-
-async function readRequestBody(request: IncomingMessage): Promise<Buffer> {
+async function readRequestBody(request: Request): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let bytes = 0;
-  for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+  const reader = request.body?.getReader();
+  if (reader === undefined) return Buffer.alloc(0);
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const buffer = Buffer.from(value);
     bytes += buffer.byteLength;
     if (bytes > MAX_REQUEST_BYTES) {
+      void reader.cancel();
       throw new Error(`Request body exceeds ${MAX_REQUEST_BYTES} bytes`);
     }
     chunks.push(buffer);
@@ -351,40 +325,17 @@ async function readRequestBody(request: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-function writeUpstreamResponse(response: ServerResponse, result: UpstreamResult): void {
+function upstreamResponse(result: UpstreamResult, headRequest = false): Response {
+  const headers = new Headers();
   for (const [name, value] of result.headers) {
     if (!HOP_BY_HOP_HEADERS.has(name)) {
-      response.setHeader(name, value);
+      headers.set(name, value);
     }
   }
-  response.writeHead(result.status);
-  response.end(result.body);
-}
-
-function writeJson(response: ServerResponse, status: number, body: JsonValue | object): void {
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
-  response.end(JSON.stringify(body));
-}
-
-async function serveDashboard(response: ServerResponse, pathname: string): Promise<void> {
-  const relativePath = pathname === "/"
-    ? "index.html"
-    : pathname === "/playground"
-      ? "playground.html"
-      : pathname.slice(1);
-  if (!new Set(["index.html", "playground.html", "app.js", "playground.js", "codemirror.js", "styles.css"]).has(relativePath)) {
-    writeJson(response, 404, { error: "Not found" });
-    return;
-  }
-
-  try {
-    const content = await readFile(join(PUBLIC_DIRECTORY, relativePath));
-    response.writeHead(200, { "content-type": contentType(relativePath) });
-    response.end(content);
-  } catch (error) {
-    logDiagnostic("dashboard_asset_failed", error, { path: relativePath });
-    writeJson(response, 500, { error: "Dashboard asset could not be read" });
-  }
+  const body = headRequest || result.status === 204 || result.status === 205 || result.status === 304
+    ? null
+    : new Uint8Array(result.body);
+  return new Response(body, { status: result.status, headers });
 }
 
 function matchExchangeRoute(
@@ -418,23 +369,6 @@ function readOffset(value: string | null): number {
   }
   const offset = Number(value);
   return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0;
-}
-
-function contentType(path: string): string {
-  switch (extname(path)) {
-    case ".html":
-      return "text/html; charset=utf-8";
-    case ".js":
-      return "text/javascript; charset=utf-8";
-    case ".css":
-      return "text/css; charset=utf-8";
-    default:
-      return "application/octet-stream";
-  }
-}
-
-function formatHost(host: string): string {
-  return host.includes(":") ? `[${host}]` : host;
 }
 
 function logDiagnostic(
