@@ -1,4 +1,4 @@
-import { basicSetup, EditorView, keymap, json, jsonParseLinter, linter } from "/codemirror.js";
+import { basicSetup, EditorView, keymap, json, jsonLanguage, jsonParseLinter, linter, Prec, systemOneCompletion } from "/codemirror.js";
 
 const sampleRequest = {
   model: "jev-1.13.0",
@@ -31,19 +31,21 @@ const editor = new EditorView({
   extensions: [
     basicSetup,
     json(),
+    jsonLanguage.data.of({ autocomplete: systemOneCompletion }),
     linter(jsonParseLinter()),
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({
       "aria-labelledby": "request-label",
       "aria-describedby": "request-error",
     }),
-    keymap.of([{
+    // basicSetup uses Mod-Enter for a blank line; the playground uses it to send.
+    Prec.highest(keymap.of([{
       key: "Mod-Enter",
       run: () => {
         void sendRequest();
         return true;
       },
-    }]),
+    }])),
   ],
   parent: elements.editor,
 });

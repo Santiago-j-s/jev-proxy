@@ -13,11 +13,11 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && npm run build:editor",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && npm run build:editor",
     "build:editor": "esbuild browser/codemirror.js --bundle --format=esm --minify --outfile=public/codemirror.js",
     "dev": "npm run build:editor && tsx src/cli.ts start",
     "start": "node dist/cli.js start",
-    "check": "tsc -p tsconfig.json --noEmit",
+    "check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.browser.json",
     "test": "npm run build:editor && node --import tsx --test test/*.test.ts"
   },
   "engines": {
@@ -30,8 +30,12 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/language": "^6.12.4",
     "@codemirror/lint": "^6.9.7",
+    "@codemirror/state": "^6.7.6",
+    "@lezer/common": "^1.5.2",
     "codemirror": "^6.0.2"
   }
 }
