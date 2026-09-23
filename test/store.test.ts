@@ -120,3 +120,53 @@ test("lists exchanges with an offset", () => {
   assert.deepEqual(store.listExchanges(1, 1).map((exchange) => exchange.id), ["older"]);
   store.close();
 });
+
+test("filters before pagination and summarizes only matching app and feature", () => {
+  const store = new ExchangeStore(":memory:");
+  for (const [index, [id, dimensions]] of ([
+    ["one", { app: "alpha", feature: "search" }],
+    ["two", { app: "alpha", feature: "sync" }],
+    ["three", { app: "beta", feature: "search" }],
+    ["four", {}],
+  ] as const).entries()) {
+    store.beginExchange({
+      id,
+      startedAt: new Date(Date.now() - index * 1_000).toISOString(),
+      method: "POST",
+      path: "/v1/systemone",
+      requestedModel: null,
+      questionCount: null,
+      requestBody: "{}",
+      dimensions,
+    });
+  }
+  store.completeExchange("one", {
+    outcome: "success",
+    finishedAt: new Date().toISOString(),
+    durationMs: 200,
+    httpStatus: 200,
+    resolvedModel: "jev-1.13.0",
+    responseBody: "{}",
+    upstreamRequestId: null,
+    usage: { inputTokens: 100, outputTokens: 4 },
+    cost: { status: "calculated", billableInputTokens: 100, nanoUsd: 4_200, pricingRuleId: "jev-1.13.0@2026-09" },
+  });
+
+  assert.deepEqual(store.listFilterValues(), { apps: ["alpha", "beta"], features: ["search", "sync"] });
+  assert.deepEqual(store.listExchanges(1, 0, { app: "alpha", feature: "search" }).map((item) => item.id), ["one"]);
+  assert.deepEqual(store.listExchanges(1, 1, { app: "alpha", feature: null }).map((item) => item.id), ["two"]);
+  assert.deepEqual(store.summarize({ app: "alpha", feature: "search" }), {
+    exchangeCount: 1,
+    successCount: 1,
+    errorCount: 0,
+    inputTokens: 100,
+    outputTokens: 4,
+    costNanoUsd: 4_200,
+    unknownCostCount: 0,
+    averageDurationMs: 200,
+  });
+  assert.equal(store.summarize({ app: null, feature: "search" }).exchangeCount, 2);
+  assert.equal(store.summarize({ app: "beta", feature: "sync" }).exchangeCount, 0);
+  assert.equal(store.summarize().exchangeCount, 4);
+  store.close();
+});

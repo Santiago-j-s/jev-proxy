@@ -3,6 +3,10 @@ const elements = {
   connectionLabel: document.querySelector("#connection-label"),
   exchangeList: document.querySelector("#exchange-list"),
   emptyState: document.querySelector("#empty-state"),
+  emptyMessage: document.querySelector("#empty-message"),
+  emptyHint: document.querySelector("#empty-hint"),
+  appFilter: document.querySelector("#app-filter"),
+  featureFilter: document.querySelector("#feature-filter"),
   inspectorIdle: document.querySelector("#inspector-idle"),
   inspectorContent: document.querySelector("#inspector-content"),
   inspectorStatus: document.querySelector("#inspector-status"),
@@ -32,10 +36,16 @@ writePageNumber(readPageNumber(), true);
 
 async function refresh() {
   try {
-    const [summary, list] = await Promise.all([
-      getJson("/api/summary"),
-      getJson(`/api/exchanges?limit=${pageSize}&offset=${pageOffset}`),
+    const search = window.location.search;
+    const parameters = new URLSearchParams(search);
+    parameters.set("limit", String(pageSize));
+    parameters.set("offset", String(pageOffset));
+    const [filters, summary, list] = await Promise.all([
+      getJson("/api/filters"),
+      getJson(`/api/summary${search}`),
+      getJson(`/api/exchanges?${parameters}`),
     ]);
+    if (window.location.search !== search) return;
     const pageCount = Math.max(1, Math.ceil(summary.exchangeCount / pageSize));
     const currentPage = Math.floor(pageOffset / pageSize) + 1;
     if (currentPage > pageCount) {
@@ -44,15 +54,28 @@ async function refresh() {
       await refresh();
       return;
     }
+    renderFilterOptions(elements.appFilter, filters.apps, new URLSearchParams(search).get("app"));
+    renderFilterOptions(elements.featureFilter, filters.features, new URLSearchParams(search).get("feature"));
     renderSummary(summary);
     const hasNextPage = pageOffset + list.exchanges.length < summary.exchangeCount;
-    renderExchanges(list.exchanges);
+    renderExchanges(list.exchanges, elements.appFilter.value !== "" || elements.featureFilter.value !== "");
     renderPagination(summary.exchangeCount, hasNextPage);
     setConnection(true);
   } catch (error) {
     setConnection(false);
     console.error(error);
   }
+}
+
+function renderFilterOptions(select, values, selected) {
+  const options = [new Option(select.id === "app-filter" ? "All apps" : "All features", "")];
+  for (const value of values) options.push(new Option(value, value));
+  if (selected && !values.includes(selected)) options.push(new Option(selected, selected));
+  if (select.value === (selected ?? "") && select.options.length === options.length &&
+    options.every((option, index) => select.options[index]?.value === option.value)) return;
+  for (const option of Array.from(select.options)) option.remove();
+  select.append(...options);
+  select.value = selected ?? "";
 }
 
 function renderSummary(summary) {
@@ -74,8 +97,10 @@ function renderSummary(summary) {
     : formatDuration(summary.averageDurationMs);
 }
 
-function renderExchanges(exchanges) {
+function renderExchanges(exchanges, filtered) {
   elements.emptyState.hidden = exchanges.length !== 0;
+  elements.emptyMessage.textContent = filtered ? "No exchanges match these filters." : "No exchanges captured yet.";
+  elements.emptyHint.hidden = filtered;
   elements.exchangeList.replaceChildren(...exchanges.map(exchangeRow));
 }
 
@@ -107,6 +132,22 @@ function writePageNumber(page, replace) {
   const url = new URL(window.location.href);
   url.searchParams.set("page", String(page));
   window.history[replace ? "replaceState" : "pushState"]({}, "", url);
+}
+
+function changeFilters() {
+  const url = new URL(window.location.href);
+  for (const [name, value] of [["app", elements.appFilter.value], ["feature", elements.featureFilter.value]]) {
+    if (value) url.searchParams.set(name, value);
+    else url.searchParams.delete(name);
+  }
+  url.searchParams.set("page", "1");
+  window.history.pushState({}, "", url);
+  pageOffset = 0;
+  selectedExchangeId = null;
+  selectedExchange = null;
+  elements.inspectorIdle.hidden = false;
+  elements.inspectorContent.hidden = true;
+  void refresh();
 }
 
 function exchangeRow(exchange) {
@@ -285,10 +326,16 @@ function formatUsd(nanoUsd) {
 }
 
 elements.refreshButton.addEventListener("click", () => void refresh());
+elements.appFilter.addEventListener("change", changeFilters);
+elements.featureFilter.addEventListener("change", changeFilters);
 elements.previousPage.addEventListener("click", () => void changePage(-1));
 elements.nextPage.addEventListener("click", () => void changePage(1));
 window.addEventListener("popstate", () => {
   pageOffset = (readPageNumber() - 1) * pageSize;
+  selectedExchangeId = null;
+  selectedExchange = null;
+  elements.inspectorIdle.hidden = false;
+  elements.inspectorContent.hidden = true;
   void refresh();
 });
 elements.replayButton.addEventListener("click", () => void replaySelected());

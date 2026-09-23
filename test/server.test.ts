@@ -86,6 +86,7 @@ test("forwards a Jev request and captures its full exchange without credentials"
       authorization: "Bearer caller-secret",
       "content-type": "application/json",
       "x-jev-app": "server-test",
+      "x-jev-feature": "request-routing",
       "x-jev-tags": "dataset=gold",
     },
     body: requestBody,
@@ -95,6 +96,15 @@ test("forwards a Jev request and captures its full exchange without credentials"
   assert.equal(upstreamAuthorization, "Bearer upstream-secret");
   assert.equal(upstreamLocalHeader, undefined);
   assert.equal(upstreamBody, requestBody);
+
+  const availableFilters = await fetch(new URL("/api/filters", proxy.url));
+  assert.deepEqual(await availableFilters.json(), { apps: ["server-test"], features: ["request-routing"] });
+  const filteredSummary = await fetch(new URL("/api/summary?app=server-test&feature=request-routing", proxy.url));
+  assert.equal((await filteredSummary.json()).exchangeCount, 1);
+  const unmatchedSummary = await fetch(new URL("/api/summary?app=other", proxy.url));
+  assert.equal((await unmatchedSummary.json()).exchangeCount, 0);
+  const filteredList = await fetch(new URL("/api/exchanges?app=server-test&feature=other", proxy.url));
+  assert.deepEqual((await filteredList.json()).exchanges, []);
 
   const passthrough = await fetch(new URL("/v1/models?demo=1", proxy.url), {
     headers: { authorization: "Bearer caller-secret", "x-jev-app": "passthrough" },
@@ -127,7 +137,7 @@ test("forwards a Jev request and captures its full exchange without credentials"
   assert.equal(exchange?.requestedModel, "jev-latest");
   assert.equal(exchange?.resolvedModel, "jev-1.13.0");
   assert.equal(exchange?.costNanoUsd, 10_500);
-  assert.deepEqual(exchange?.dimensions, { app: "server-test", "tag.dataset": "gold" });
+  assert.deepEqual(exchange?.dimensions, { app: "server-test", feature: "request-routing", "tag.dataset": "gold" });
   assert.equal(store.listExchanges().length, 2);
   assert.ok(store.listExchanges().some((item) => item.dimensions.replay_of === originalId));
 

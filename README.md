@@ -59,6 +59,10 @@ X-Jev-Tags: dataset=gold,branch=threshold-test
 
 These headers stop at the proxy and are not forwarded to TypeSafe.
 
+On the captures page, select an app and/or feature to filter the exchange list
+and usage summary. The dropdowns use values found in retained captures; both
+filters match exact dimension values and are saved in the page URL.
+
 ## Commands
 
 ```text

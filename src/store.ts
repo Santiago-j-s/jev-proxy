@@ -5,6 +5,7 @@ import { Database } from "bun:sqlite";
 import type {
   ExchangeCompletion,
   ExchangeDetail,
+  ExchangeFilters,
   ExchangeListItem,
   NewExchange,
   UsageSummary,
@@ -13,6 +14,16 @@ import { PRICING_RULES } from "./pricing.js";
 
 type SqlRow = Record<string, unknown>;
 const RETENTION_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
+const MATCH_DIMENSIONS = `
+  (? IS NULL OR EXISTS (
+    SELECT 1 FROM exchange_dimensions app
+    WHERE app.exchange_id = e.id AND app.name = 'app' AND app.value = ?
+  ))
+  AND (? IS NULL OR EXISTS (
+    SELECT 1 FROM exchange_dimensions feature
+    WHERE feature.exchange_id = e.id AND feature.name = 'feature' AND feature.value = ?
+  ))
+`;
 
 export class ExchangeStore {
   readonly #database: Database;
@@ -124,7 +135,7 @@ export class ExchangeStore {
       );
   }
 
-  listExchanges(limit = 100, offset = 0): readonly ExchangeListItem[] {
+  listExchanges(limit = 100, offset = 0, filters: ExchangeFilters = { app: null, feature: null }): readonly ExchangeListItem[] {
     this.#pruneExpired();
     const rows = this.#withDimensions(`
       SELECT
@@ -137,11 +148,12 @@ export class ExchangeStore {
         ) AS dimensions_json
       FROM exchanges e
       LEFT JOIN exchange_dimensions d ON d.exchange_id = e.id
+      WHERE ${MATCH_DIMENSIONS}
       GROUP BY e.id
       ORDER BY e.started_at DESC
       LIMIT ?
       OFFSET ?
-    `, limit, offset);
+    `, filters.app, filters.app, filters.feature, filters.feature, limit, offset);
 
     return rows.map(parseListItem);
   }
@@ -164,20 +176,35 @@ export class ExchangeStore {
     return row === undefined ? null : parseDetail(row);
   }
 
-  summarize(): UsageSummary {
+  listFilterValues(): { readonly apps: readonly string[]; readonly features: readonly string[] } {
     this.#pruneExpired();
-    const row = this.#database.query<SqlRow, []>(`
+    const rows = this.#database.query<SqlRow, []>(`
+      SELECT DISTINCT name, value
+      FROM exchange_dimensions
+      WHERE name IN ('app', 'feature') AND value != ''
+      ORDER BY value
+    `).all();
+    return {
+      apps: rows.filter((row) => readString(row, "name") === "app").map((row) => readString(row, "value")),
+      features: rows.filter((row) => readString(row, "name") === "feature").map((row) => readString(row, "value")),
+    };
+  }
+
+  summarize(filters: ExchangeFilters = { app: null, feature: null }): UsageSummary {
+    this.#pruneExpired();
+    const row = this.#database.query<SqlRow, [string | null, string | null, string | null, string | null]>(`
       SELECT
         COUNT(*) AS exchange_count,
-        COALESCE(SUM(CASE WHEN outcome = 'success' THEN 1 ELSE 0 END), 0) AS success_count,
-        COALESCE(SUM(CASE WHEN outcome IN ('upstream_error', 'network_error') THEN 1 ELSE 0 END), 0) AS error_count,
-        COALESCE(SUM(input_tokens), 0) AS input_tokens,
-        COALESCE(SUM(output_tokens), 0) AS output_tokens,
-        COALESCE(SUM(cost_nano_usd), 0) AS cost_nano_usd,
-        COALESCE(SUM(CASE WHEN cost_status = 'unknown' THEN 1 ELSE 0 END), 0) AS unknown_cost_count,
-        AVG(duration_ms) AS average_duration_ms
-      FROM exchanges
-    `).get();
+        COALESCE(SUM(CASE WHEN e.outcome = 'success' THEN 1 ELSE 0 END), 0) AS success_count,
+        COALESCE(SUM(CASE WHEN e.outcome IN ('upstream_error', 'network_error') THEN 1 ELSE 0 END), 0) AS error_count,
+        COALESCE(SUM(e.input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(e.output_tokens), 0) AS output_tokens,
+        COALESCE(SUM(e.cost_nano_usd), 0) AS cost_nano_usd,
+        COALESCE(SUM(CASE WHEN e.cost_status = 'unknown' THEN 1 ELSE 0 END), 0) AS unknown_cost_count,
+        AVG(e.duration_ms) AS average_duration_ms
+      FROM exchanges e
+      WHERE ${MATCH_DIMENSIONS}
+    `).get(filters.app, filters.app, filters.feature, filters.feature);
 
     if (row === null) {
       throw new Error("Summary query returned no row");
@@ -212,8 +239,8 @@ export class ExchangeStore {
     return rows.map(parseDetail);
   }
 
-  #withDimensions(sql: string, ...parameters: readonly (string | number)[]): SqlRow[] {
-    return this.#database.query<SqlRow, (string | number)[]>(sql).all(...parameters);
+  #withDimensions(sql: string, ...parameters: readonly (string | number | null)[]): SqlRow[] {
+    return this.#database.query<SqlRow, (string | number | null)[]>(sql).all(...parameters);
   }
 
   #pruneExpired(): void {

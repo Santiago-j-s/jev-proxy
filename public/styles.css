@@ -20,7 +20,7 @@
   body { min-width: 320px; font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
   [hidden] { display: none !important; }
   button, a { -webkit-tap-highlight-color: transparent; }
-  button:focus-visible, a:focus-visible, input:focus-visible {
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
     outline: 3px solid color-mix(in srgb, var(--color-signal) 55%, transparent);
     outline-offset: 3px;
   }
@@ -29,6 +29,43 @@
 /* The connection state is set by the health-check scripts on both pages. */
 #connection.online .connection-dot { background: var(--color-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent); }
 #connection.offline .connection-dot { background: var(--color-fault); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-fault) 18%, transparent); }
+
+/* Customizable native pickers; other browsers retain the standard select. */
+@supports (appearance: base-select) {
+  .capture-filter, .capture-filter::picker(select) { appearance: base-select; }
+  .capture-filter { display: flex; align-items: center; gap: 12px; }
+  .capture-filter:hover { background: var(--color-fog); }
+  .capture-filter > button { min-width: 0; flex: 1; text-align: left; }
+  .capture-filter selectedcontent { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .capture-filter::picker-icon {
+    content: "";
+    width: 7px;
+    height: 7px;
+    margin-right: 3px;
+    border-right: 1.5px solid var(--color-muted);
+    border-bottom: 1.5px solid var(--color-muted);
+    rotate: 45deg;
+  }
+  .capture-filter::picker(select) {
+    max-height: min(320px, 50vh);
+    overflow: auto;
+    top: calc(anchor(bottom) + 4px);
+    left: anchor(left);
+    width: anchor-size(width);
+    margin: 0;
+    border: 1px solid var(--color-line);
+    background: var(--color-paper);
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
+  }
+  .capture-filter option {
+    padding: 10px 12px;
+    font: 13px/1.4 var(--font-body);
+    color: var(--color-ink);
+  }
+  .capture-filter option:hover, .capture-filter option:focus { background: var(--color-fog); }
+  .capture-filter option:checked { background: color-mix(in srgb, var(--color-signal) 8%, var(--color-paper)); font-weight: 600; }
+  .capture-filter option::checkmark { order: 1; margin-left: auto; color: var(--color-signal); }
+}
 
 /* The scope illustration and third-party editors are not owned by the page markup. */
 .scope::before, .scope::after { content: ""; position: absolute; background: var(--color-line); }

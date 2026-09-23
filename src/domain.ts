@@ -13,6 +13,11 @@ export type Usage = {
   readonly outputTokens: number;
 };
 
+export type ExchangeFilters = {
+  readonly app: string | null;
+  readonly feature: string | null;
+};
+
 export type CalculatedCost = {
   readonly status: "calculated";
   readonly billableInputTokens: number;

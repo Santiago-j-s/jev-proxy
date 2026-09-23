@@ -58,7 +58,24 @@
         </div>
       </section>
 
-      <section class="-mx-5 mt-7 grid min-h-[620px] grid-cols-1 border-y border-line bg-paper min-[561px]:mx-0 min-[561px]:border min-[981px]:grid-cols-[minmax(0,1.12fr)_minmax(380px,0.88fr)]">
+      <section class="mt-7 flex flex-wrap items-end gap-4" aria-label="Filter captures">
+        <label class="grid min-w-[180px] flex-1 gap-2 font-utility text-[10px] tracking-[0.08em] text-muted uppercase min-[981px]:max-w-[260px]" for="app-filter">
+          App
+          <select class="capture-filter w-full cursor-pointer border border-line bg-paper px-3 py-[10px] font-body text-[13px] normal-case tracking-normal text-ink" id="app-filter">
+            <button type="button"><selectedcontent></selectedcontent></button>
+            <option value="">All apps</option>
+          </select>
+        </label>
+        <label class="grid min-w-[180px] flex-1 gap-2 font-utility text-[10px] tracking-[0.08em] text-muted uppercase min-[981px]:max-w-[260px]" for="feature-filter">
+          Feature
+          <select class="capture-filter w-full cursor-pointer border border-line bg-paper px-3 py-[10px] font-body text-[13px] normal-case tracking-normal text-ink" id="feature-filter">
+            <button type="button"><selectedcontent></selectedcontent></button>
+            <option value="">All features</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="-mx-5 mt-5 grid min-h-[620px] grid-cols-1 border-y border-line bg-paper min-[561px]:mx-0 min-[561px]:border min-[981px]:grid-cols-[minmax(0,1.12fr)_minmax(380px,0.88fr)]">
         <div class="min-w-0 border-b border-line min-[981px]:border-r min-[981px]:border-b-0">
           <div class="flex min-h-[91px] items-center justify-between gap-5 border-b border-line px-[22px] py-[18px]">
             <div>
@@ -71,8 +88,8 @@
           </div>
           <ol class="list-none" id="exchange-list" aria-live="polite"></ol>
           <div class="px-[22px] py-[70px] text-center text-muted" id="empty-state" hidden>
-            <p class="font-display text-[22px]">No exchanges captured yet.</p>
-            <code class="break-all font-utility text-[10px] leading-[1.5]">TYPESAFE_BASE_URL=http://127.0.0.1:7788</code>
+            <p class="font-display text-[22px]" id="empty-message">No exchanges captured yet.</p>
+            <code class="break-all font-utility text-[10px] leading-[1.5]" id="empty-hint">TYPESAFE_BASE_URL=http://127.0.0.1:7788</code>
           </div>
           <nav class="flex min-h-[52px] items-center justify-end gap-3 border-t border-line px-4 py-2 font-utility text-[9px] leading-none tracking-[0.06em] uppercase" id="pagination" aria-label="Exchange pages" hidden>
             <button class="cursor-pointer border border-line px-[10px] py-[7px] hover:enabled:bg-fog disabled:cursor-default disabled:opacity-40" id="previous-page" type="button">Previous</button>

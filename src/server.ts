@@ -4,6 +4,7 @@ import dashboard from "../public/index.html";
 import playground from "../public/playground.html";
 
 import type { Config } from "./config.js";
+import type { ExchangeFilters } from "./domain.js";
 import { calculateCost } from "./pricing.js";
 import { parseJson, readRequestFacts, readResponseFacts } from "./protocol.js";
 import { ExchangeStore } from "./store.js";
@@ -81,13 +82,17 @@ async function routeRequest(context: RouteContext): Promise<Response> {
   }
 
   if (request.method === "GET" && url.pathname === "/api/summary") {
-    return Response.json(store.summarize());
+    return Response.json(store.summarize(readExchangeFilters(url.searchParams)));
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/filters") {
+    return Response.json(store.listFilterValues());
   }
 
   if (request.method === "GET" && url.pathname === "/api/exchanges") {
     const limit = readLimit(url.searchParams.get("limit"));
     const offset = readOffset(url.searchParams.get("offset"));
-    return Response.json({ exchanges: store.listExchanges(limit, offset) });
+    return Response.json({ exchanges: store.listExchanges(limit, offset, readExchangeFilters(url.searchParams)) });
   }
 
   const exchangeRoute = matchExchangeRoute(url.pathname);
@@ -361,6 +366,13 @@ function readLimit(value: string | null): number {
   }
   const limit = Number(value);
   return Number.isInteger(limit) && limit >= 1 && limit <= 500 ? limit : 100;
+}
+
+function readExchangeFilters(parameters: URLSearchParams): ExchangeFilters {
+  return {
+    app: parameters.get("app")?.trim() || null,
+    feature: parameters.get("feature")?.trim() || null,
+  };
 }
 
 function readOffset(value: string | null): number {
