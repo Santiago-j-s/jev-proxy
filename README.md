@@ -69,7 +69,7 @@ jev-proxy show <id>   Print a complete exchange
 jev-proxy export      Export every exchange as JSON Lines
 ```
 
-During development, use `bun run dev`. To make the command available globally from this checkout, run `bun link`.
+During development, use `bun run dev`. The captures and playground pages use Tailwind CSS; Bun compiles their shared `public/styles.css` automatically when serving the HTML routes. To make the command available globally from this checkout, run `bun link`.
 
 ## Configuration
 

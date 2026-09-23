@@ -70,6 +70,10 @@ test("forwards a Jev request and captures its full exchange without credentials"
   const stylesheet = await fetch(new URL(stylesheetPath, proxy.url));
   assert.equal(stylesheet.status, 200);
   assert.match(stylesheet.headers.get("content-type") ?? "", /css/);
+  const styles = await stylesheet.text();
+  assert.match(styles, /\.bg-signal\b/);
+  assert.match(styles, /before\\:bg-fault/);
+  assert.match(styles, /\.json-editor \.cm-editor/);
 
   const requestBody = JSON.stringify({
     state: "private state",

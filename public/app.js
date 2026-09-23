@@ -111,39 +111,51 @@ function writePageNumber(page, replace) {
 
 function exchangeRow(exchange) {
   const item = document.createElement("li");
-  item.className = "exchange-row";
-  item.dataset.outcome = exchange.outcome;
+  item.className = [
+    "relative border-b border-line before:absolute before:inset-y-0 before:left-0",
+    "before:w-[3px] before:origin-bottom",
+    "before:transition-transform motion-reduce:before:transition-none",
+    exchange.id === selectedExchangeId ? "before:scale-y-100" : "before:scale-y-0",
+    exchange.outcome === "pending" ? "before:bg-[#d09935]" :
+      exchange.outcome === "upstream_error" || exchange.outcome === "network_error" ? "before:bg-fault" : "before:bg-success",
+  ].join(" ");
 
   const button = document.createElement("button");
   button.type = "button";
+  button.className = "grid min-h-[82px] w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-[14px] px-[22px] py-3 text-left text-inherit hover:bg-fog aria-[current=true]:bg-fog min-[561px]:grid-cols-[0.75fr_1.5fr_0.65fr]";
   button.setAttribute("aria-current", String(exchange.id === selectedExchangeId));
   button.addEventListener("click", () => void selectExchange(exchange.id));
 
   const timeCell = document.createElement("span");
-  timeCell.className = "exchange-time";
+  timeCell.className = "min-w-0";
   const time = document.createElement("time");
+  time.className = "mb-[7px] block font-utility text-xs leading-[1.2]";
   time.dateTime = exchange.startedAt;
   time.textContent = formatTime(exchange.startedAt);
   const status = document.createElement("span");
-  status.className = "status-label";
+  status.className = `font-utility text-[9px] leading-none tracking-[0.07em] uppercase ${exchange.outcome === "upstream_error" || exchange.outcome === "network_error" ? "text-fault" : "text-success"}`;
   status.textContent = exchange.durationMs === null
     ? statusText(exchange)
     : `${statusText(exchange)} · ${formatDuration(exchange.durationMs)}`;
   timeCell.append(time, status);
 
   const modelCell = document.createElement("span");
-  modelCell.className = "exchange-model";
+  modelCell.className = "col-start-1 min-w-0 min-[561px]:col-auto";
   const model = document.createElement("strong");
+  model.className = "block truncate font-body text-[13px] leading-[1.3] font-semibold";
   model.textContent = exchange.resolvedModel ?? exchange.requestedModel ?? "Unknown model";
   const dimensions = document.createElement("small");
+  dimensions.className = "mt-[6px] block truncate font-utility text-[10px] leading-[1.2] text-muted";
   dimensions.textContent = dimensionText(exchange.dimensions, exchange.questionCount);
   modelCell.append(model, dimensions);
 
   const usageCell = document.createElement("span");
-  usageCell.className = "exchange-usage";
+  usageCell.className = "col-start-2 row-span-2 min-w-0 text-right min-[561px]:col-auto min-[561px]:row-auto";
   const tokens = document.createElement("strong");
+  tokens.className = "block font-utility text-[13px] leading-[1.2] font-semibold";
   tokens.textContent = exchange.inputTokens === null ? "—" : formatCompact(exchange.inputTokens);
   const cost = document.createElement("small");
+  cost.className = "font-utility text-[9px] leading-[1.2] text-muted";
   cost.textContent = exchange.costNanoUsd === null ? "cost unknown" : formatUsd(exchange.costNanoUsd);
   usageCell.append(tokens, cost);
 
@@ -185,10 +197,12 @@ function renderInspector(exchange) {
 
 function fact(label, value) {
   const container = document.createElement("div");
-  container.className = "fact";
+  container.className = "min-w-0 border-r border-b border-line p-[14px_16px] max-[560px]:[&:nth-child(2n)]:border-r-0 min-[561px]:[&:nth-child(3n)]:border-r-0";
   const term = document.createElement("dt");
+  term.className = "font-utility text-[8px] leading-none tracking-[0.08em] text-muted uppercase";
   term.textContent = label;
   const description = document.createElement("dd");
+  description.className = "mt-[7px] truncate font-utility text-[11px] leading-[1.3]";
   description.textContent = String(value);
   description.title = String(value);
   container.append(term, description);
