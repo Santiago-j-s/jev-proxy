@@ -180,6 +180,43 @@ test("rejects oversized requests before forwarding or capturing them", async () 
   }
 });
 
+test("names the captured exchange when a replay cannot reach the upstream", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jev-proxy-replay-"));
+  const databasePath = join(directory, "capture.sqlite");
+  const seed = new ExchangeStore(databasePath);
+  seed.beginExchange({
+    id: "source",
+    startedAt: new Date().toISOString(),
+    method: "POST",
+    path: "/v1/systemone",
+    requestedModel: "jev-latest",
+    questionCount: 1,
+    requestBody: "{}",
+    dimensions: { app: "replay-test" },
+  });
+  seed.close();
+
+  const proxy = await startProxy({
+    host: "127.0.0.1",
+    port: 0,
+    databasePath,
+    upstreamBaseUrl: new URL("http://127.0.0.1:1"),
+    apiKey: "upstream-secret",
+  });
+  try {
+    const replay = await fetch(new URL("/api/exchanges/source/replay", proxy.url), { method: "POST" });
+    assert.equal(replay.status, 502);
+    assert.match((await replay.json()).error, /^Replay could not reach TypeSafe/);
+    const replayId = replay.headers.get("x-jev-exchange-id");
+    assert.ok(replayId);
+    const captured = await (await fetch(new URL(`/api/exchanges/${replayId}`, proxy.url))).json();
+    assert.equal(captured.outcome, "network_error");
+    assert.equal(captured.dimensions.replay_of, "source");
+  } finally {
+    await proxy.close();
+  }
+});
+
 function listen(server: ReturnType<typeof createServer>): Promise<void> {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
