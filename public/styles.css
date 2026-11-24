@@ -9,6 +9,7 @@
   --color-signal: #315bff;
   --color-fault: #c84f3b;
   --color-success: #26705f;
+  --color-pending: #d09935;
   --color-inspector: #f2f5f4;
   --font-display: "Iowan Old Style", "Baskerville", "Times New Roman", serif;
   --font-body: "Avenir Next", "Helvetica Neue", sans-serif;
@@ -21,27 +22,102 @@
   [hidden] { display: none !important; }
   button, a { -webkit-tap-highlight-color: transparent; }
   button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--color-signal) 55%, transparent);
-    outline-offset: 3px;
+    outline: 2px solid color-mix(in srgb, var(--color-signal) 60%, transparent);
+    outline-offset: 2px;
+  }
+  kbd {
+    display: inline-block;
+    min-width: 1.5em;
+    padding: 1px 4px;
+    border: 1px solid var(--color-line);
+    border-bottom-width: 2px;
+    background: var(--color-paper);
+    font: 10px/1.2 var(--font-utility);
+    text-align: center;
+    color: var(--color-ink);
   }
 }
 
-/* The connection state is set by the health-check scripts on both pages. */
-#connection.online .connection-dot { background: var(--color-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent); }
-#connection.offline .connection-dot { background: var(--color-fault); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-fault) 18%, transparent); }
+@layer components {
+  /* Both pages are fixed-height workspaces on wide screens; panels scroll, not the page. */
+  .workspace-page { @apply flex min-h-dvh flex-col min-[981px]:h-dvh min-[981px]:overflow-hidden; }
+
+  .site-header { @apply flex h-[52px] shrink-0 items-center gap-4 border-b border-line px-[clamp(12px,2vw,32px)]; }
+  .brand { @apply mr-auto inline-flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.02em] text-inherit no-underline; }
+  .brand-mark { @apply grid size-[26px] place-items-center rounded-[50%_50%_50%_7px] bg-ink font-display text-[17px] italic text-paper; }
+  .nav-link { @apply px-2.5 py-2 font-utility text-[10px] leading-none tracking-[0.07em] text-muted uppercase no-underline hover:text-ink aria-[current=page]:bg-paper aria-[current=page]:text-ink; }
+  .connection { @apply hidden items-center gap-2 font-utility text-[10px] leading-none tracking-[0.08em] text-muted uppercase min-[561px]:flex; }
+  .connection-dot {
+    @apply size-2 rounded-full bg-pending;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-pending) 18%, transparent);
+  }
+  .connection[data-state="online"] .connection-dot { background: var(--color-success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-success) 18%, transparent); }
+  .connection[data-state="offline"] .connection-dot { background: var(--color-fault); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-fault) 18%, transparent); }
+
+  .metric { @apply flex min-w-0 flex-col justify-center gap-1.5 border-line px-4 py-2.5; }
+  .metric-label { @apply font-utility text-[9px] leading-none tracking-[0.08em] text-muted uppercase; }
+  .metric-value { @apply font-utility text-[20px] leading-none font-semibold tracking-[-0.04em] tabular-nums; }
+  .metric-note { @apply truncate font-utility text-[10px] leading-none text-muted; }
+
+  .capture-filter { @apply min-w-0 flex-1 basis-32 cursor-pointer border border-line bg-paper px-2.5 py-1.5 font-body text-[13px] text-ink min-[561px]:max-w-56; }
+
+  .segmented { @apply ml-auto flex border border-line; }
+  .segmented button { @apply cursor-pointer px-3 py-1.5 font-utility text-[10px] leading-none tracking-[0.06em] text-muted uppercase hover:bg-fog aria-pressed:bg-ink aria-pressed:text-paper; }
+  .segmented button + button { @apply border-l border-line; }
+
+  /* Columns follow the list panel's width, which depends on the inspector, not the viewport. */
+  .list-panel { container: list / inline-size; }
+  .exchange-columns { @apply grid grid-cols-[3rem_minmax(0,1fr)_3.25rem] items-center gap-3; }
+  .exchange-columns > .col-time, .exchange-columns > .col-cost, .exchange-columns > .col-latency { display: none; }
+  @container list (min-width: 520px) {
+    .exchange-columns { grid-template-columns: 3rem 4.75rem minmax(0, 1fr) 3.25rem; }
+    .exchange-columns > .col-time { display: block; }
+  }
+  @container list (min-width: 720px) {
+    .exchange-columns { grid-template-columns: 3rem 4.75rem minmax(0, 1fr) 3.25rem 5rem 4rem; }
+    .exchange-columns > .col-cost, .exchange-columns > .col-latency { display: block; }
+  }
+  .inspector { container: inspector / inline-size; }
+  .facts { @apply grid grid-cols-2; }
+  .facts > div { @apply min-w-0 border-r border-b border-line/70 px-4 py-2; }
+  .facts > div:nth-child(2n) { border-right: 0; }
+  .facts > div:nth-child(n + 5) { border-bottom: 0; }
+  @container inspector (min-width: 480px) {
+    .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .facts > div:nth-child(2n) { border-right-width: 1px; }
+    .facts > div:nth-child(3n) { border-right: 0; }
+    .facts > div:nth-child(n + 4) { border-bottom: 0; }
+  }
+  .list-header { @apply border-b border-line px-3 py-1.5 font-utility text-[9px] leading-none tracking-[0.08em] text-muted uppercase; }
+
+  .status-pill { @apply inline-flex h-5 min-w-10 shrink-0 items-center justify-center px-1.5 font-utility text-[10px] leading-none font-semibold tabular-nums; }
+  .status-pill[data-outcome="success"] { @apply bg-success/12 text-success; }
+  .status-pill[data-outcome="upstream_error"], .status-pill[data-outcome="network_error"] { @apply bg-fault/12 text-fault; }
+  .status-pill[data-outcome="pending"] { @apply bg-pending/15 text-[#8a6420]; }
+
+  .pager-button { @apply cursor-pointer border border-line px-2 py-1 leading-none text-ink hover:enabled:bg-fog disabled:cursor-default disabled:opacity-35; }
+  .icon-button { @apply cursor-pointer px-2 py-1 font-utility text-[10px] leading-none tracking-[0.06em] text-muted uppercase hover:bg-fog hover:text-ink; }
+  .action-button { @apply cursor-pointer border border-signal px-2.5 py-1.5 font-utility text-[10px] leading-none tracking-[0.06em] text-signal uppercase hover:enabled:bg-signal hover:enabled:text-white disabled:cursor-not-allowed disabled:opacity-45; }
+  .tab { @apply cursor-pointer px-2.5 py-1.5 font-utility text-[10px] leading-none tracking-[0.06em] text-muted uppercase hover:text-ink aria-selected:bg-paper aria-selected:text-ink aria-selected:shadow-[inset_0_-2px_0_var(--color-signal)]; }
+  .section-title { @apply px-4 pt-3 pb-1 font-utility text-[9px] leading-none font-semibold tracking-[0.1em] text-muted uppercase; }
+  .chip { @apply inline-flex max-w-full items-center gap-1 border border-line bg-paper px-1.5 py-0.5 font-utility text-[10px] leading-[1.4]; }
+  .chip-name { @apply text-muted; }
+
+  .json-view { @apply overflow-auto font-utility text-[11px] leading-[1.65] break-words whitespace-pre-wrap text-[#27343a]; }
+}
 
 /* Customizable native pickers; other browsers retain the standard select. */
 @supports (appearance: base-select) {
   .capture-filter, .capture-filter::picker(select) { appearance: base-select; }
-  .capture-filter { display: flex; align-items: center; gap: 12px; }
+  .capture-filter { display: flex; align-items: center; gap: 10px; }
   .capture-filter:hover { background: var(--color-fog); }
   .capture-filter > button { min-width: 0; flex: 1; text-align: left; }
   .capture-filter selectedcontent { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .capture-filter::picker-icon {
     content: "";
-    width: 7px;
-    height: 7px;
-    margin-right: 3px;
+    width: 6px;
+    height: 6px;
+    margin: 0 3px 3px 0;
     border-right: 1.5px solid var(--color-muted);
     border-bottom: 1.5px solid var(--color-muted);
     rotate: 45deg;
@@ -51,14 +127,14 @@
     overflow: auto;
     top: calc(anchor(bottom) + 4px);
     left: anchor(left);
-    width: anchor-size(width);
+    min-width: anchor-size(width);
     margin: 0;
     border: 1px solid var(--color-line);
     background: var(--color-paper);
     box-shadow: 0 12px 28px color-mix(in srgb, var(--color-ink) 12%, transparent);
   }
   .capture-filter option {
-    padding: 10px 12px;
+    padding: 8px 12px;
     font: 13px/1.4 var(--font-body);
     color: var(--color-ink);
   }
@@ -78,9 +154,10 @@
 
 .json-editor .cm-editor { height: 100%; background: transparent; }
 .json-editor .cm-scroller { font: 12px/1.7 var(--font-utility); }
-.json-editor .cm-content { padding: 20px 0; caret-color: var(--color-ink); }
-.json-editor .cm-gutters { padding-block: 20px; border-right: 1px solid var(--color-line); background: var(--color-inspector); color: var(--color-muted); }
-.json-editor .cm-editor.cm-focused { outline: 3px solid color-mix(in srgb, var(--color-signal) 55%, transparent); outline-offset: -3px; }
+/* CodeMirror offsets gutters by the content padding itself; padding the gutters too misaligns line numbers. */
+.json-editor .cm-content { padding: 16px 0; caret-color: var(--color-ink); }
+.json-editor .cm-gutters { border-right: 1px solid var(--color-line); background: var(--color-inspector); color: var(--color-muted); }
+.json-editor .cm-editor.cm-focused { outline: 2px solid color-mix(in srgb, var(--color-signal) 60%, transparent); outline-offset: -2px; }
 
 .token.property { color: #315b8f; }
 .token.string { color: #26705f; }

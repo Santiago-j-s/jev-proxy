@@ -87,6 +87,12 @@ The dashboard is a local signal desk: part lab notebook, part packet inspector. 
 
 The interface has one job: move quickly from aggregate behavior to the exact request and answer. It therefore consists of a usage strip, a chronological stream, and a persistent payload inspector.
 
+On wide screens both pages are fixed-height workspaces: the stream and the inspector scroll independently, so the inspector stays beside the selected row. Rows are single dense lines whose columns follow the list panel's width through container queries. Polling patches rows in place rather than rebuilding the list, so focus, hover, and scroll position survive refreshes.
+
+The inspector leads with the judgment (each question beside its typed answer) because that is what a Jev exchange is for; the raw payloads remain one tab away and are never reformatted beyond pretty-printing.
+
+Replay responds with an `X-Jev-Exchange-Id` header naming the new exchange so the dashboard can select it. Only the dashboard's replay route adds it; `/v1/*` responses stay unchanged.
+
 ## Deliberate limits in the first version
 
 - no payload redaction;

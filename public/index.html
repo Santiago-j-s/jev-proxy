@@ -7,133 +7,149 @@
     <title>Captures — Jev Proxy</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <header class="flex h-[60px] items-center justify-between border-b border-line px-[clamp(20px,4vw,64px)] min-[561px]:h-[70px]">
-      <a class="inline-flex items-center gap-[11px] font-semibold tracking-[-0.02em] text-inherit no-underline" href="/" aria-label="Jev Proxy home">
-        <span class="grid size-[30px] place-items-center rounded-[50%_50%_50%_8px] bg-ink font-display text-[20px] italic text-paper" aria-hidden="true">J</span>
+  <body class="workspace-page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Jev Proxy home">
+        <span class="brand-mark" aria-hidden="true">J</span>
         <span>Jev Proxy</span>
       </a>
-      <div class="flex items-center gap-2 min-[561px]:gap-[clamp(18px,3vw,42px)]">
-        <nav class="flex items-center gap-1" aria-label="Primary navigation">
-          <a class="bg-paper px-[10px] py-2 font-utility text-[10px] leading-none tracking-[0.07em] text-ink uppercase no-underline" href="/" aria-current="page">Captures</a>
-          <a class="px-[10px] py-2 font-utility text-[10px] leading-none tracking-[0.07em] text-muted uppercase no-underline hover:text-ink" href="/playground">Playground</a>
-        </nav>
-        <div class="hidden items-center gap-2 font-utility text-[11px] leading-none tracking-[0.08em] text-muted uppercase min-[561px]:flex" id="connection">
-          <span class="connection-dot size-2 rounded-full bg-[#d09935] shadow-[0_0_0_4px_color-mix(in_srgb,#d09935_18%,transparent)]" aria-hidden="true"></span>
-          <span id="connection-label">Connecting</span>
-        </div>
+      <nav class="flex items-center gap-1" aria-label="Primary navigation">
+        <a class="nav-link" href="/" aria-current="page">Captures</a>
+        <a class="nav-link" href="/playground">Playground</a>
+      </nav>
+      <div class="connection" id="connection" title="Bound to loopback. Payloads are stored locally in cleartext.">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span data-connection-label>Connecting</span>
       </div>
     </header>
 
-    <main class="px-[clamp(20px,4vw,64px)] pb-16">
-      <section class="pt-[26px] pb-5 min-[561px]:pt-[34px] min-[561px]:pb-6" aria-labelledby="page-title">
-        <div>
-          <h1 class="font-display text-[30px] leading-none font-medium tracking-[-0.035em] min-[561px]:text-[clamp(30px,3.2vw,44px)]" id="page-title">Captured requests</h1>
-        </div>
-        <p class="mt-2 max-w-[560px] text-sm leading-[1.45] text-muted">
-          Inspect System One payloads, responses, usage, latency, and cost.
-        </p>
-      </section>
+    <main class="flex min-h-0 flex-1 flex-col gap-3 px-[clamp(12px,2vw,32px)] pt-3 pb-4">
+      <h1 class="sr-only">Captured requests</h1>
 
       <section class="grid grid-cols-2 border border-line bg-paper min-[981px]:grid-cols-4" aria-label="Usage summary">
-        <div class="flex min-h-[88px] flex-col justify-center border-r border-b border-line px-4 py-[14px] min-[561px]:min-h-[94px] min-[561px]:px-[18px] min-[561px]:py-4 min-[981px]:border-b-0">
-          <span class="mb-[9px] font-utility text-[10px] leading-[1.2] tracking-[0.08em] text-muted uppercase">Exchanges</span>
-          <strong class="font-utility text-[22px] leading-none font-semibold tracking-[-0.045em] tabular-nums min-[561px]:text-[clamp(21px,2.2vw,29px)]" id="metric-exchanges">—</strong>
-          <small class="mt-[6px] font-utility text-[9px] leading-[1.3] text-muted" id="metric-errors">No failures</small>
+        <div class="metric border-r border-b min-[981px]:border-b-0">
+          <span class="metric-label">Exchanges</span>
+          <span class="flex items-baseline gap-3">
+            <strong class="metric-value" id="metric-exchanges">—</strong>
+            <button class="metric-note cursor-pointer underline-offset-2 hover:underline disabled:cursor-default disabled:no-underline data-[failed=true]:text-fault" id="metric-errors" type="button" disabled>No failures</button>
+          </span>
         </div>
-        <div class="flex min-h-[88px] flex-col justify-center border-b border-line px-4 py-[14px] min-[561px]:min-h-[94px] min-[561px]:px-[18px] min-[561px]:py-4 min-[981px]:border-r min-[981px]:border-b-0">
-          <span class="mb-[9px] font-utility text-[10px] leading-[1.2] tracking-[0.08em] text-muted uppercase">Input tokens</span>
-          <strong class="font-utility text-[22px] leading-none font-semibold tracking-[-0.045em] tabular-nums min-[561px]:text-[clamp(21px,2.2vw,29px)]" id="metric-input">—</strong>
-          <small class="mt-[6px] font-utility text-[9px] leading-[1.3] text-muted" id="metric-output">— output tokens</small>
+        <div class="metric border-b min-[981px]:border-r min-[981px]:border-b-0">
+          <span class="metric-label">Tokens</span>
+          <span class="flex items-baseline gap-3">
+            <strong class="metric-value" id="metric-input">—</strong>
+            <small class="metric-note" id="metric-output">in · — out</small>
+          </span>
         </div>
-        <div class="flex min-h-[88px] flex-col justify-center border-r border-line px-4 py-[14px] min-[561px]:min-h-[94px] min-[561px]:px-[18px] min-[561px]:py-4">
-          <span class="mb-[9px] font-utility text-[10px] leading-[1.2] tracking-[0.08em] text-muted uppercase">Cost</span>
-          <strong class="font-utility text-[22px] leading-none font-semibold tracking-[-0.045em] tabular-nums min-[561px]:text-[clamp(21px,2.2vw,29px)]" id="metric-cost">—</strong>
-          <small class="mt-[6px] font-utility text-[9px] leading-[1.3] text-muted">Calculated from resolved model</small>
+        <div class="metric border-r">
+          <span class="metric-label">Cost</span>
+          <span class="flex items-baseline gap-3">
+            <strong class="metric-value" id="metric-cost">—</strong>
+            <small class="metric-note" id="metric-cost-note">resolved model</small>
+          </span>
         </div>
-        <div class="flex min-h-[88px] flex-col justify-center px-4 py-[14px] min-[561px]:min-h-[94px] min-[561px]:px-[18px] min-[561px]:py-4">
-          <span class="mb-[9px] font-utility text-[10px] leading-[1.2] tracking-[0.08em] text-muted uppercase">Average latency</span>
-          <strong class="font-utility text-[22px] leading-none font-semibold tracking-[-0.045em] tabular-nums min-[561px]:text-[clamp(21px,2.2vw,29px)]" id="metric-latency">—</strong>
-          <small class="mt-[6px] font-utility text-[9px] leading-[1.3] text-muted">Proxy round trip</small>
+        <div class="metric">
+          <span class="metric-label">Average latency</span>
+          <span class="flex items-baseline gap-3">
+            <strong class="metric-value" id="metric-latency">—</strong>
+            <small class="metric-note">proxy round trip</small>
+          </span>
         </div>
       </section>
 
-      <section class="mt-7 flex flex-wrap items-end gap-4" aria-label="Filter captures">
-        <label class="grid min-w-[180px] flex-1 gap-2 font-utility text-[10px] tracking-[0.08em] text-muted uppercase min-[981px]:max-w-[260px]" for="app-filter">
-          App
-          <select class="capture-filter w-full cursor-pointer border border-line bg-paper px-3 py-[10px] font-body text-[13px] normal-case tracking-normal text-ink" id="app-filter">
-            <button type="button"><selectedcontent></selectedcontent></button>
-            <option value="">All apps</option>
-          </select>
-        </label>
-        <label class="grid min-w-[180px] flex-1 gap-2 font-utility text-[10px] tracking-[0.08em] text-muted uppercase min-[981px]:max-w-[260px]" for="feature-filter">
-          Feature
-          <select class="capture-filter w-full cursor-pointer border border-line bg-paper px-3 py-[10px] font-body text-[13px] normal-case tracking-normal text-ink" id="feature-filter">
-            <button type="button"><selectedcontent></selectedcontent></button>
-            <option value="">All features</option>
-          </select>
-        </label>
-      </section>
-
-      <section class="-mx-5 mt-5 grid min-h-[620px] grid-cols-1 border-y border-line bg-paper min-[561px]:mx-0 min-[561px]:border min-[981px]:grid-cols-[minmax(0,1.12fr)_minmax(380px,0.88fr)]">
-        <div class="min-w-0 border-b border-line min-[981px]:border-r min-[981px]:border-b-0">
-          <div class="flex min-h-[91px] items-center justify-between gap-5 border-b border-line px-[22px] py-[18px]">
-            <div>
-              <h2 class="font-display text-[23px] leading-[1.1] font-medium tracking-[-0.025em]">Recent exchanges</h2>
+      <section class="workspace grid min-h-0 flex-1 grid-cols-1 border border-line bg-paper min-[981px]:grid-cols-[minmax(0,1.1fr)_minmax(400px,0.9fr)]">
+        <div class="list-panel flex min-h-0 min-w-0 flex-col border-b border-line min-[981px]:border-r min-[981px]:border-b-0">
+          <div class="flex items-center gap-2 border-b border-line px-3 py-2" role="group" aria-label="Filter captures">
+            <select class="capture-filter" id="app-filter" aria-label="App">
+              <button type="button"><selectedcontent></selectedcontent></button>
+              <option value="">All apps</option>
+            </select>
+            <select class="capture-filter" id="feature-filter" aria-label="Feature">
+              <button type="button"><selectedcontent></selectedcontent></button>
+              <option value="">All features</option>
+            </select>
+            <div class="segmented shrink-0" role="group" aria-label="Status">
+              <button type="button" data-status="" aria-pressed="true">All</button>
+              <button type="button" data-status="failed" aria-pressed="false">Failed</button>
             </div>
-            <button class="cursor-pointer border border-line px-3 py-2 font-utility text-[10px] leading-none tracking-[0.06em] uppercase hover:bg-fog" id="refresh-button" type="button">Refresh</button>
           </div>
-          <div class="hidden grid-cols-[0.75fr_1.5fr_0.65fr] gap-[14px] border-b border-line px-[22px] py-[10px] font-utility text-[9px] leading-none tracking-[0.08em] text-muted uppercase min-[561px]:grid" aria-hidden="true">
-            <span>When / status</span><span>Model / dimensions</span><span>Usage</span>
+
+          <div class="exchange-columns list-header" aria-hidden="true">
+            <span>Status</span><span class="col-time">Time</span><span>Context · model</span>
+            <span class="text-right">Tokens</span><span class="col-cost text-right">Cost</span><span class="col-latency text-right">Latency</span>
           </div>
-          <ol class="list-none" id="exchange-list" aria-live="polite"></ol>
-          <div class="px-[22px] py-[70px] text-center text-muted" id="empty-state" hidden>
-            <p class="font-display text-[22px]" id="empty-message">No exchanges captured yet.</p>
-            <code class="break-all font-utility text-[10px] leading-[1.5]" id="empty-hint">TYPESAFE_BASE_URL=http://127.0.0.1:7788</code>
+
+          <ol class="min-h-0 flex-1 list-none overflow-y-auto overscroll-contain" id="exchange-list" aria-label="Exchanges"></ol>
+
+          <div class="grid flex-1 place-items-center px-6 py-16 text-center text-muted" id="empty-state" hidden>
+            <div class="grid gap-3">
+              <p class="font-display text-[20px]" id="empty-message">No exchanges captured yet.</p>
+              <p class="text-[13px]" id="empty-hint">Point a Jev client at the proxy:
+                <code class="mt-2 block font-utility text-[11px] text-ink">TYPESAFE_BASE_URL=<span data-origin></span></code>
+              </p>
+            </div>
           </div>
-          <nav class="flex min-h-[52px] items-center justify-end gap-3 border-t border-line px-4 py-2 font-utility text-[9px] leading-none tracking-[0.06em] uppercase" id="pagination" aria-label="Exchange pages" hidden>
-            <button class="cursor-pointer border border-line px-[10px] py-[7px] hover:enabled:bg-fog disabled:cursor-default disabled:opacity-40" id="previous-page" type="button">Previous</button>
-            <span class="text-muted" id="page-status"></span>
-            <button class="cursor-pointer border border-line px-[10px] py-[7px] hover:enabled:bg-fog disabled:cursor-default disabled:opacity-40" id="next-page" type="button">Next</button>
+
+          <nav class="flex min-h-10 items-center gap-3 border-t border-line px-3 py-1.5 font-utility text-[10px] text-muted" id="pagination" aria-label="Exchange pages" hidden>
+            <span class="hidden min-[561px]:inline"><kbd>j</kbd> <kbd>k</kbd> move · <kbd>esc</kbd> close</span>
+            <span class="ml-auto tabular-nums" id="page-status"></span>
+            <button class="pager-button" id="previous-page" type="button" aria-label="Previous page">←</button>
+            <button class="pager-button" id="next-page" type="button" aria-label="Next page">→</button>
           </nav>
         </div>
 
-        <aside class="min-w-0 bg-inspector" id="inspector" aria-labelledby="inspector-title">
-          <div class="grid min-h-[320px] content-center place-items-center gap-[34px] p-10 text-center text-muted min-[981px]:min-h-[620px]" id="inspector-idle">
-            <div class="scope relative size-[92px] rounded-full border border-line" aria-hidden="true"><span></span><span></span><span></span></div>
-            <p class="max-w-[300px] font-display text-[17px] leading-[1.5]">Select an exchange to inspect its complete request and response.</p>
-          </div>
-          <div id="inspector-content" hidden>
-            <div class="sticky top-0 z-2 flex min-h-14 items-center justify-between gap-5 border-b border-line bg-inspector px-4 py-[10px]">
-              <div class="flex min-w-0 items-baseline gap-[10px]">
-                <p class="shrink-0 font-utility text-[10px] leading-[1.2] font-bold tracking-[0.14em] text-signal uppercase" id="inspector-status">Exchange</p>
-                <h2 class="truncate font-utility text-[11px] leading-[1.2] text-muted" id="inspector-title">Details</h2>
+        <aside class="inspector min-h-0 min-w-0 overflow-y-auto overscroll-contain bg-inspector" id="inspector" aria-labelledby="inspector-title">
+          <div class="grid h-full min-h-[280px] place-items-center p-10 text-center text-muted" id="inspector-idle">
+            <div class="grid justify-items-center gap-8">
+              <div class="scope relative size-[92px] rounded-full border border-line" aria-hidden="true"><span></span><span></span><span></span></div>
+              <div class="grid gap-2">
+                <p class="max-w-[300px] font-display text-[17px] leading-[1.5]">Select an exchange to inspect its judgment and payloads.</p>
+                <p class="font-utility text-[10px]">Loopback only · payloads stored locally in cleartext</p>
               </div>
-              <button class="cursor-pointer border border-signal px-[10px] py-[7px] font-utility text-[10px] leading-none tracking-[0.06em] text-signal uppercase hover:bg-signal hover:text-white disabled:cursor-wait disabled:opacity-55" id="replay-button" type="button">Replay</button>
             </div>
-            <details class="border-b border-line">
-              <summary class="cursor-pointer px-4 py-[10px] font-utility text-[9px] leading-none tracking-[0.08em] text-muted uppercase hover:bg-fog hover:text-ink">Metadata</summary>
-              <dl class="grid grid-cols-2 border-b border-line min-[561px]:grid-cols-3" id="inspector-facts"></dl>
-            </details>
-            <section class="border-b border-line">
-              <div class="flex items-center justify-between px-4 pt-[13px]"><h3 class="font-body text-[11px] leading-none font-semibold">Request</h3><button class="cursor-pointer px-2 py-[5px] font-utility text-[10px] leading-none tracking-[0.06em] text-muted uppercase hover:bg-fog" data-copy="request">Copy</button></div>
-              <pre id="request-payload" class="language-json max-h-[65vh] overflow-auto px-4 pt-[15px] pb-6 font-utility text-[10.5px] leading-[1.65] break-words whitespace-pre-wrap text-[#27343a]"></pre>
-            </section>
-            <section class="border-b border-line">
-              <div class="flex items-center justify-between px-4 pt-[13px]"><h3 class="font-body text-[11px] leading-none font-semibold">Response</h3><button class="cursor-pointer px-2 py-[5px] font-utility text-[10px] leading-none tracking-[0.06em] text-muted uppercase hover:bg-fog" data-copy="response">Copy</button></div>
-              <pre id="response-payload" class="language-json max-h-[65vh] overflow-auto px-4 pt-[15px] pb-6 font-utility text-[10.5px] leading-[1.65] break-words whitespace-pre-wrap text-[#27343a]"></pre>
-            </section>
           </div>
+
+          <article id="inspector-content" hidden>
+            <header class="sticky top-0 z-10 border-b border-line bg-inspector/95 backdrop-blur-sm">
+              <div class="flex min-h-12 items-center gap-3 px-4 py-2">
+                <span class="status-pill" id="inspector-status"></span>
+                <h2 class="min-w-0 flex-1 truncate font-utility text-[12px] font-semibold" id="inspector-title">Exchange</h2>
+                <button class="icon-button" id="close-inspector" type="button" aria-label="Close inspector" title="Close (Esc)">×</button>
+                <button class="action-button" id="replay-button" type="button">Replay</button>
+              </div>
+              <p class="border-t border-line px-4 py-2 font-utility text-[10px] data-[tone=error]:text-fault data-[tone=ok]:text-success" id="replay-message" role="status" hidden></p>
+            </header>
+
+            <dl class="facts border-b border-line" id="inspector-facts"></dl>
+            <div class="flex flex-wrap gap-1.5 border-b border-line px-4 py-2.5" id="inspector-dimensions"></div>
+
+            <div class="border-b border-line bg-fault/6 px-4 py-3" id="inspector-error" hidden>
+              <p class="font-utility text-[10px] font-semibold tracking-[0.08em] text-fault uppercase" id="inspector-error-title"></p>
+              <p class="mt-1 font-utility text-[11px] leading-[1.5] whitespace-pre-wrap break-words" id="inspector-error-message"></p>
+            </div>
+
+            <section class="border-b border-line" id="judgment-section">
+              <h3 class="section-title">Judgment</h3>
+              <div id="judgment"></div>
+            </section>
+
+            <section class="border-b border-line" id="state-section">
+              <h3 class="section-title">State</h3>
+              <div id="state"></div>
+            </section>
+
+            <section>
+              <div class="flex items-center gap-1 border-b border-line px-3 py-1.5" role="tablist" aria-label="Raw payload">
+                <button class="tab" type="button" role="tab" data-payload="request" aria-selected="false">Request</button>
+                <button class="tab" type="button" role="tab" data-payload="response" aria-selected="true">Response</button>
+                <button class="icon-button ml-auto" id="copy-payload" type="button">Copy</button>
+              </div>
+              <pre class="json-view px-4 pt-3 pb-6" id="payload" role="tabpanel"></pre>
+            </section>
+          </article>
         </aside>
       </section>
     </main>
-
-    <footer class="flex flex-col justify-between gap-5 border-t border-line px-[clamp(20px,4vw,64px)] py-5 font-utility text-[9px] leading-[1.2] tracking-[0.08em] text-muted uppercase min-[561px]:flex-row">
-      <span>Bound to loopback</span>
-      <span>Payloads stored locally in cleartext</span>
-    </footer>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js" integrity="sha512-QXFMVAusM85vUYDaNgcYeU3rzSlc+bTV4JvkfJhjxSHlQEo+ig53BtnGkvFTiNJh8D+wv6uWAQ2vJaVmxe8d3w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>
