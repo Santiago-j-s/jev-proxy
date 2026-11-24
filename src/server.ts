@@ -116,6 +116,7 @@ async function routeRequest(context: RouteContext): Promise<Response> {
   if (request.method === "POST" && url.pathname === "/v1/systemone") {
     const body = await readRequestBody(request);
     const result = await captureSystemOne({
+      id: randomUUID(),
       config: context.config,
       store,
       body,
@@ -133,6 +134,8 @@ async function routeRequest(context: RouteContext): Promise<Response> {
 }
 
 type CaptureInput = {
+  /** Chosen by the caller so it can name the exchange even when the upstream call throws. */
+  readonly id: string;
   readonly config: Config;
   readonly store: ExchangeStore;
   readonly body: Buffer;
@@ -146,10 +149,8 @@ type UpstreamResult = {
   readonly body: Buffer;
 };
 
-type CapturedResult = UpstreamResult & { readonly exchangeId: string };
-
-async function captureSystemOne(input: CaptureInput): Promise<CapturedResult> {
-  const id = randomUUID();
+async function captureSystemOne(input: CaptureInput): Promise<UpstreamResult> {
+  const id = input.id;
   const startedAt = new Date().toISOString();
   const started = performance.now();
   const requestText = input.body.toString("utf8");
@@ -203,7 +204,6 @@ async function captureSystemOne(input: CaptureInput): Promise<CapturedResult> {
     }
 
     return {
-      exchangeId: id,
       status: upstreamResponse.status,
       headers: upstreamResponse.headers,
       body: responseBody,
@@ -239,16 +239,29 @@ async function replayExchange(context: RouteContext, id: string): Promise<Respon
     }, { status: 409 });
   }
 
-  const result = await captureSystemOne({
-    config: context.config,
-    store: context.store,
-    body: Buffer.from(exchange.requestBody),
-    incomingHeaders: new Headers({ "content-type": "application/json" }),
-    dimensions: { ...exchange.dimensions, replay_of: id },
-  });
   // Replay is a dashboard route, not the transparent /v1 proxy, so it may name the new exchange.
+  const replayId = randomUUID();
+  const exchangeHeader = { "x-jev-exchange-id": replayId };
+  let result: UpstreamResult;
+  try {
+    result = await captureSystemOne({
+      id: replayId,
+      config: context.config,
+      store: context.store,
+      body: Buffer.from(exchange.requestBody),
+      incomingHeaders: new Headers({ "content-type": "application/json" }),
+      dimensions: { ...exchange.dimensions, replay_of: id },
+    });
+  } catch (error) {
+    // The failure is captured as a network_error exchange unless recording itself failed.
+    const recorded = context.store.getExchange(replayId) !== null;
+    return Response.json(
+      { error: `Replay could not reach TypeSafe: ${error instanceof Error ? error.message : String(error)}` },
+      { status: 502, headers: recorded ? exchangeHeader : {} },
+    );
+  }
   const response = upstreamResponse(result);
-  response.headers.set("x-jev-exchange-id", result.exchangeId);
+  response.headers.set("x-jev-exchange-id", replayId);
   return response;
 }
 

@@ -61,6 +61,10 @@ function readView() {
   };
 }
 
+function viewKey(view) {
+  return [view.page, view.app, view.feature, view.status].join("|");
+}
+
 function writeView(changes, { push }) {
   const url = new URL(window.location.href);
   const next = { ...readView(), ...changes };
@@ -77,8 +81,15 @@ let upstreamKeyConfigured = true;
 let selected = null; // { id, signature, detail }
 let payloadKind = "response";
 let refreshGeneration = 0;
+let detailGeneration = 0;
+let replayInFlight = false;
+// Which view the rendered rows belong to; keyboard moves wait until it matches the URL.
+let renderedViewKey = null;
+// A page-edge selection waiting for its page to render: { key, position }.
+let pendingEdge = null;
 const rows = new Map(); // id -> { signature, item, button }
 
+/** Resolves to the rendered page's exchanges, or null when the refresh failed or was superseded. */
 async function refresh() {
   const generation = ++refreshGeneration;
   const view = readView();
@@ -96,7 +107,7 @@ async function refresh() {
       getJson(`/api/summary?${dimensionQuery}`),
       getJson(`/api/exchanges?${listQuery}`),
     ]);
-    if (generation !== refreshGeneration) return;
+    if (generation !== refreshGeneration) return null;
     setConnection(elements.connection, true, "Capturing locally");
 
     const pageCount = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
@@ -113,11 +124,19 @@ async function refresh() {
     renderSummary(summary, view.status);
     renderExchanges(view);
     renderPagination(view.page);
-    await syncSelection(view.exchange);
+    renderedViewKey = viewKey(view);
+    if (pendingEdge?.key === renderedViewKey) {
+      const target = pendingEdge.position === "first" ? exchanges[0] : exchanges.at(-1);
+      pendingEdge = null;
+      if (target && readView().exchange === null) await select(target.id, { focus: true });
+    }
+    await syncSelection(readView().exchange);
+    return exchanges;
   } catch (error) {
-    if (generation !== refreshGeneration) return;
+    if (generation !== refreshGeneration) return null;
     setConnection(elements.connection, false);
     console.error(error);
+    return null;
   }
 }
 
@@ -137,9 +156,8 @@ function renderSummary(summary, status) {
   const failed = summary.errorCount > 0;
   elements.metricErrors.dataset.failed = String(failed);
   elements.metricErrors.disabled = !failed && status !== "failed";
-  elements.metricErrors.textContent = status === "failed"
-    ? "show all"
-    : failed ? `${formatInteger(summary.errorCount)} failed` : "no failures";
+  const count = failed ? `${formatInteger(summary.errorCount)} failed` : "no failures";
+  elements.metricErrors.textContent = status === "failed" ? `${count} · show all` : count;
   elements.metricInput.textContent = formatCompact(summary.inputTokens);
   elements.metricOutput.textContent = `in · ${formatCompact(summary.outputTokens)} out`;
   elements.metricCost.textContent = formatUsd(summary.costNanoUsd);
@@ -160,6 +178,10 @@ function renderExchanges(view) {
   elements.emptyMessage.textContent = filtered ? "No exchanges match these filters." : "No exchanges captured yet.";
   elements.emptyHint.hidden = filtered;
 
+  // Replacing or moving a row drops its focus, so remember it and restore it once rows are in order.
+  const focusedId = document.activeElement instanceof HTMLElement && elements.exchangeList.contains(document.activeElement)
+    ? document.activeElement.closest("button[data-id]")?.dataset.id ?? null
+    : null;
   const visible = new Set();
   exchanges.forEach((exchange, index) => {
     visible.add(exchange.id);
@@ -180,6 +202,8 @@ function renderExchanges(view) {
       rows.delete(id);
     }
   }
+  const focusedButton = focusedId === null ? undefined : rows.get(focusedId)?.button;
+  if (focusedButton && document.activeElement !== focusedButton) focusedButton.focus({ preventScroll: true });
   markSelectedRow();
 }
 
@@ -253,6 +277,7 @@ function renderPagination(page) {
 }
 
 function changeView(changes) {
+  pendingEdge = null;
   writeView(changes, { push: true });
   void refresh();
 }
@@ -263,6 +288,7 @@ async function select(id, { focus }) {
   writeView({ exchange: id }, { push: false });
   elements.replayMessage.hidden = true;
   markSelectedRow();
+  updateReplayButton();
   if (focus) {
     const button = rows.get(id)?.button;
     button?.focus({ preventScroll: true });
@@ -277,21 +303,27 @@ async function select(id, { focus }) {
 /** Loads the selected exchange's detail when it changes; keeps an in-flight exchange current. */
 async function syncSelection(id) {
   if (id === null) {
+    detailGeneration++;
     selected = null;
     elements.inspectorIdle.hidden = false;
     elements.inspectorContent.hidden = true;
+    updateReplayButton();
     return;
   }
+  // Without a visible row there is no signature to compare, so keep polling a pending exchange directly.
   const signature = rows.get(id)?.signature ?? null;
-  if (selected?.id === id && (signature === null || selected.signature === signature)) return;
+  const current = selected?.id === id
+    && (signature === null ? selected.detail.outcome !== "pending" : selected.signature === signature);
+  if (current) return;
+  const generation = ++detailGeneration;
   try {
     const detail = await getJson(`/api/exchanges/${encodeURIComponent(id)}`);
-    if (readView().exchange !== id) return;
+    if (generation !== detailGeneration || readView().exchange !== id) return;
     const replaced = selected?.id !== id;
     selected = { id, signature, detail };
     renderInspector(detail, replaced);
   } catch {
-    if (readView().exchange !== id) return;
+    if (generation !== detailGeneration || readView().exchange !== id) return;
     writeView({ exchange: null }, { push: false });
     void syncSelection(null);
   }
@@ -303,7 +335,8 @@ function markSelectedRow() {
 }
 
 function moveSelection(delta) {
-  if (exchanges.length === 0) return;
+  // While a navigation is loading, the rows on screen belong to the previous view.
+  if (exchanges.length === 0 || renderedViewKey !== viewKey(readView())) return;
   const index = exchanges.findIndex((exchange) => exchange.id === readView().exchange);
   const nextIndex = index === -1 ? (delta > 0 ? 0 : exchanges.length - 1) : index + delta;
   const page = readView().page;
@@ -317,11 +350,11 @@ function moveSelection(delta) {
   }
 }
 
-async function goToPageAndSelect(page, position) {
+function goToPageAndSelect(page, position) {
   writeView({ page, exchange: null }, { push: true });
-  await refresh();
-  const target = position === "first" ? exchanges[0] : exchanges.at(-1);
-  if (target) await select(target.id, { focus: true });
+  // Applied by whichever refresh renders this page first, including a later poll if this one fails.
+  pendingEdge = { key: viewKey(readView()), position };
+  void refresh();
 }
 
 function clearSelection() {
@@ -346,10 +379,7 @@ function renderInspector(exchange, replaced) {
   );
   elements.inspectorTitle.title = formatDateTime(exchange.startedAt);
 
-  elements.replayButton.disabled = !upstreamKeyConfigured || exchange.requestBody === null;
-  elements.replayButton.title = upstreamKeyConfigured
-    ? "Send this request body again as a new exchange (uses API credits)"
-    : "Replay needs TYPESAFE_API_KEY on the proxy process";
+  updateReplayButton();
 
   elements.inspectorFacts.replaceChildren(
     fact("Latency", formatDuration(exchange.durationMs)),
@@ -444,34 +474,55 @@ async function copyPayload() {
   const exchange = selected?.detail;
   const text = payloadKind === "request" ? exchange?.requestBody : exchange?.responseBody;
   if (text == null) return;
-  const parsed = parseJsonText(text);
-  await navigator.clipboard.writeText(parsed === undefined ? text : JSON.stringify(parsed, null, 2));
+  // Copy the captured bytes as stored; pretty-printing is only for display.
+  await navigator.clipboard.writeText(text);
   elements.copyPayload.textContent = "Copied";
   window.setTimeout(() => { elements.copyPayload.textContent = "Copy"; }, 1000);
 }
 
+// Replay spends API credits, so only one may run at a time, whatever the inspector shows meanwhile.
+/** The loaded detail, only while it is the exchange the URL selects (not a previous one still on screen). */
+function currentDetail() {
+  return selected !== null && selected.id === readView().exchange ? selected.detail : null;
+}
+
+function updateReplayButton() {
+  elements.replayButton.textContent = replayInFlight ? "Replaying…" : "Replay";
+  elements.replayButton.disabled = replayInFlight || !upstreamKeyConfigured || currentDetail()?.requestBody == null;
+  elements.replayButton.title = upstreamKeyConfigured
+    ? "Send this request body again as a new exchange (uses API credits)"
+    : "Replay needs TYPESAFE_API_KEY on the proxy process";
+}
+
 async function replaySelected() {
-  const source = selected?.detail;
-  if (!source) return;
-  elements.replayButton.disabled = true;
-  elements.replayButton.textContent = "Replaying…";
+  const source = currentDetail();
+  if (!source || replayInFlight) return;
+  replayInFlight = true;
+  updateReplayButton();
   showReplayMessage("Sending the stored request again…", "");
+  // Only move the selection if the user is still looking at the source exchange.
+  const stillOnSource = () => readView().exchange === source.id;
   try {
     const response = await fetch(`/api/exchanges/${encodeURIComponent(source.id)}/replay`, { method: "POST" });
     const replayId = response.headers.get("x-jev-exchange-id");
-    if (replayId === null) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.error ?? `Replay failed with ${response.status}`);
-    }
+    // The proxy's own errors are { error: string }; upstream error bodies have other shapes.
+    const body = response.ok ? null : await response.json().catch(() => null);
+    const proxyError = typeof body?.error === "string" ? body.error : null;
+    if (replayId === null) throw new Error(proxyError ?? `Replay failed with ${response.status}`);
+    if (!stillOnSource()) return;
     writeView({ page: 1, exchange: replayId }, { push: true });
     await refresh();
     rows.get(replayId)?.button.scrollIntoView({ block: "nearest" });
-    showReplayMessage(response.ok ? "Replayed as a new exchange." : `Replay captured a ${response.status} response.`, response.ok ? "ok" : "error");
+    if (readView().exchange !== replayId) return;
+    showReplayMessage(
+      response.ok ? "Replayed as a new exchange." : proxyError ?? `Replay captured a ${response.status} response.`,
+      response.ok ? "ok" : "error",
+    );
   } catch (error) {
-    showReplayMessage(error instanceof Error ? error.message : String(error), "error");
+    if (stillOnSource()) showReplayMessage(error instanceof Error ? error.message : String(error), "error");
   } finally {
-    elements.replayButton.textContent = "Replay";
-    elements.replayButton.disabled = !upstreamKeyConfigured;
+    replayInFlight = false;
+    updateReplayButton();
   }
 }
 
@@ -508,7 +559,10 @@ for (const tab of elements.payloadTabs) {
     renderPayload();
   });
 }
-window.addEventListener("popstate", () => void refresh());
+window.addEventListener("popstate", () => {
+  pendingEdge = null;
+  void refresh();
+});
 
 document.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -524,7 +578,10 @@ document.addEventListener("keydown", (event) => {
 
 for (const origin of document.querySelectorAll("[data-origin]")) origin.textContent = window.location.origin;
 getJson("/api/health")
-  .then((health) => { upstreamKeyConfigured = health.upstreamKeyConfigured !== false; })
+  .then((health) => {
+    upstreamKeyConfigured = health.upstreamKeyConfigured !== false;
+    updateReplayButton();
+  })
   .catch(() => {});
 void refresh();
 window.setInterval(() => void refresh(), 2500);

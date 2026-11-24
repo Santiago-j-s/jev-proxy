@@ -75,14 +75,35 @@ function renderAnswer(answer) {
   if (answer?.type === "noul" && typeof answer.noul === "number") {
     return h("div", "grid gap-1", probabilityBar("yes", answer.noul, true));
   }
-  if ((answer?.type === "choice" || answer?.type === "score") && isObject(answer.probabilities)) {
-    const picked = String(answer.type === "choice" ? answer.choice : answer.score);
-    const rows = Object.entries(answer.probabilities)
-      .filter(([, probability]) => typeof probability === "number")
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 6);
+  if (answer?.type === "choice" && isObject(answer.probabilities)) {
+    const options = numericEntries(answer.probabilities).sort((left, right) => right[1] - left[1]);
+    // Ties can push the returned choice past the cutoff; it must always be visible.
+    const shown = options.slice(0, 6);
+    const chosen = options.find(([label]) => label === answer.choice);
+    if (chosen && !shown.includes(chosen)) shown.splice(shown.length - 1, 1, chosen);
     return h("div", "grid gap-1",
-      ...rows.map(([label, probability]) => probabilityBar(label, probability, label === picked)),
+      ...shown.map(([label, probability]) => probabilityBar(label, probability, label === answer.choice)),
+      options.length > shown.length
+        ? h("p", "font-utility text-[10px] text-muted", `+ ${options.length - shown.length} more options`)
+        : null,
+      confidenceText(answer.confidence),
+    );
+  }
+  if (answer?.type === "score" && isObject(answer.probabilities)
+    && Object.keys(answer.probabilities).every((level) => /^\d+$/.test(level))) {
+    // `score` is the expected level (e.g. 1.48), so show it alongside every level in scale order.
+    const legend = isObject(answer.legend) ? answer.legend : {};
+    const levels = numericEntries(answer.probabilities).sort((left, right) => Number(left[0]) - Number(right[0]));
+    const likeliest = levels.reduce((best, level) => (best === null || level[1] > best[1] ? level : best), null)?.[0];
+    const top = levels.at(-1)?.[0];
+    return h("div", "grid gap-1",
+      typeof answer.score === "number"
+        ? h("p", "font-utility text-[12px]", h("strong", "font-semibold", answer.score.toFixed(2)), top === undefined ? null : h("span", "text-muted", ` / ${top}`))
+        : null,
+      ...levels.map(([level, probability]) => {
+        const description = legend[level] === undefined ? null : contentText(legend[level]);
+        return probabilityBar(description ? `${level} · ${description}` : level, probability, level === likeliest);
+      }),
       confidenceText(answer.confidence),
     );
   }
@@ -98,10 +119,16 @@ function renderAnswer(answer) {
   return raw;
 }
 
+function numericEntries(object) {
+  return Object.entries(object).filter(([, probability]) => typeof probability === "number");
+}
+
 function probabilityBar(label, probability, emphasized) {
   const percent = Math.max(0, Math.min(1, probability)) * 100;
-  return h("div", "grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_3.25rem] items-center gap-3 font-utility text-[11px]",
-    h("span", `truncate ${emphasized ? "font-semibold text-ink" : "text-muted"}`, label),
+  const labelElement = h("span", `truncate ${emphasized ? "font-semibold text-ink" : "text-muted"}`, label);
+  labelElement.title = label;
+  return h("div", "grid grid-cols-[minmax(0,min(14rem,40%))_minmax(3rem,1fr)_3.25rem] items-center gap-3 font-utility text-[11px]",
+    labelElement,
     h("span", "relative h-1.5 overflow-hidden rounded-full bg-fog",
       Object.assign(h("span", `absolute inset-y-0 left-0 rounded-full ${emphasized ? "bg-signal" : "bg-line"}`), {
         style: `width: ${percent}%`,
