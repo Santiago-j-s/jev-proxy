@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { Database } from "bun:sqlite";
 
 import type {
+  DimensionFilters,
   ExchangeCompletion,
   ExchangeDetail,
   ExchangeFilters,
@@ -24,6 +25,15 @@ const MATCH_DIMENSIONS = `
     WHERE feature.exchange_id = e.id AND feature.name = 'feature' AND feature.value = ?
   ))
 `;
+const MATCH_EXCHANGES = `${MATCH_DIMENSIONS}
+  AND (? IS NULL OR e.outcome IN ('upstream_error', 'network_error'))
+`;
+const NO_DIMENSION_FILTERS: DimensionFilters = { app: null, feature: null };
+const NO_EXCHANGE_FILTERS: ExchangeFilters = { ...NO_DIMENSION_FILTERS, status: null };
+
+function exchangeFilterParameters(filters: ExchangeFilters): (string | null)[] {
+  return [filters.app, filters.app, filters.feature, filters.feature, filters.status];
+}
 
 export class ExchangeStore {
   readonly #database: Database;
@@ -135,7 +145,7 @@ export class ExchangeStore {
       );
   }
 
-  listExchanges(limit = 100, offset = 0, filters: ExchangeFilters = { app: null, feature: null }): readonly ExchangeListItem[] {
+  listExchanges(limit = 100, offset = 0, filters: ExchangeFilters = NO_EXCHANGE_FILTERS): readonly ExchangeListItem[] {
     this.#pruneExpired();
     const rows = this.#withDimensions(`
       SELECT
@@ -148,14 +158,22 @@ export class ExchangeStore {
         ) AS dimensions_json
       FROM exchanges e
       LEFT JOIN exchange_dimensions d ON d.exchange_id = e.id
-      WHERE ${MATCH_DIMENSIONS}
+      WHERE ${MATCH_EXCHANGES}
       GROUP BY e.id
       ORDER BY e.started_at DESC
       LIMIT ?
       OFFSET ?
-    `, filters.app, filters.app, filters.feature, filters.feature, limit, offset);
+    `, ...exchangeFilterParameters(filters), limit, offset);
 
     return rows.map(parseListItem);
+  }
+
+  countExchanges(filters: ExchangeFilters = NO_EXCHANGE_FILTERS): number {
+    this.#pruneExpired();
+    const row = this.#withDimensions(`
+      SELECT COUNT(*) AS exchange_count FROM exchanges e WHERE ${MATCH_EXCHANGES}
+    `, ...exchangeFilterParameters(filters))[0];
+    return row === undefined ? 0 : readNumber(row, "exchange_count");
   }
 
   getExchange(id: string): ExchangeDetail | null {
@@ -190,7 +208,8 @@ export class ExchangeStore {
     };
   }
 
-  summarize(filters: ExchangeFilters = { app: null, feature: null }): UsageSummary {
+  /** Summaries ignore the status filter so failure counts stay visible while the list shows only failures. */
+  summarize(filters: DimensionFilters = NO_DIMENSION_FILTERS): UsageSummary {
     this.#pruneExpired();
     const row = this.#database.query<SqlRow, [string | null, string | null, string | null, string | null]>(`
       SELECT

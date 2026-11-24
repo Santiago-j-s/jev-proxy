@@ -13,9 +13,14 @@ export type Usage = {
   readonly outputTokens: number;
 };
 
-export type ExchangeFilters = {
+export type DimensionFilters = {
   readonly app: string | null;
   readonly feature: string | null;
+};
+
+/** `status: "failed"` narrows the exchange list to upstream and network errors. */
+export type ExchangeFilters = DimensionFilters & {
+  readonly status: "failed" | null;
 };
 
 export type CalculatedCost = {

@@ -63,6 +63,17 @@ On the captures page, select an app and/or feature to filter the exchange list
 and usage summary. The dropdowns use values found in retained captures; both
 filters match exact dimension values and are saved in the page URL.
 
+The **Failed** toggle (or the failure count in the summary) narrows the list to
+upstream and network errors. The summary keeps counting every outcome so the
+failure rate stays visible.
+
+Selecting an exchange opens the inspector beside the list. Its **Judgment**
+section pairs each question's instructions with the returned answer, followed by
+the request `state` and the raw request and response. The selected exchange is
+saved in the URL. Use `j`/`k` or the arrow keys to move through exchanges, and
+`Esc` to close the inspector. Replaying an exchange selects the new capture,
+which links back to its original.
+
 ## Commands
 
 ```text
@@ -73,7 +84,7 @@ jev-proxy show <id>   Print a complete exchange
 jev-proxy export      Export every exchange as JSON Lines
 ```
 
-During development, use `bun run dev`. The captures and playground pages use Tailwind CSS; Bun compiles their shared `public/styles.css` automatically when serving the HTML routes. To make the command available globally from this checkout, run `bun link`.
+During development, use `bun run dev`. The captures and playground pages use Tailwind CSS; Bun compiles their shared `public/styles.css` automatically when serving the HTML routes. Rendering shared by both pages, including the Judgment view and JSON highlighting, lives in `public/ui.js`; the pages load nothing from external hosts. To make the command available globally from this checkout, run `bun link`.
 
 ## Configuration
 

@@ -1,3 +1,4 @@
+import { formatDuration, parseJsonText, renderJson, renderJudgment, setConnection } from "./ui.js";
 import { basicSetup, EditorView, keymap, json, jsonLanguage, jsonParseLinter, linter, Prec, systemOneCompletion } from "../browser/codemirror.js";
 
 const sampleRequest = {
@@ -15,14 +16,21 @@ const sampleRequest = {
 
 const elements = {
   connection: document.querySelector("#connection"),
-  connectionLabel: document.querySelector("#connection-label"),
   editor: document.querySelector("#request-editor"),
+  apiKeyRow: document.querySelector("#api-key-row"),
   apiKey: document.querySelector("#api-key"),
   error: document.querySelector("#request-error"),
   sendButton: document.querySelector("#send-button"),
   responseStatus: document.querySelector("#response-status"),
+  responseTitle: document.querySelector("#response-title"),
   responseDuration: document.querySelector("#response-duration"),
+  capturesLink: document.querySelector("#captures-link"),
   responseEmpty: document.querySelector("#response-empty"),
+  responseContent: document.querySelector("#response-content"),
+  responseError: document.querySelector("#response-error"),
+  responseErrorMessage: document.querySelector("#response-error-message"),
+  judgmentSection: document.querySelector("#judgment-section"),
+  judgment: document.querySelector("#judgment"),
   responseOutput: document.querySelector("#response-output"),
 };
 
@@ -53,26 +61,32 @@ const editor = new EditorView({
 async function checkConnection() {
   try {
     const response = await fetch("/api/health");
-    setConnection(response.ok);
+    const health = await response.json();
+    setConnection(elements.connection, response.ok, "Proxy ready");
+    // Only ask for a key when the proxy cannot supply one itself.
+    elements.apiKeyRow.hidden = health.upstreamKeyConfigured !== false;
   } catch {
-    setConnection(false);
+    setConnection(elements.connection, false);
+    elements.apiKeyRow.hidden = false;
   }
 }
 
+let sending = false;
+
 async function sendRequest() {
+  if (sending) return;
   elements.error.textContent = "";
-  let body;
-  try {
-    body = JSON.stringify(JSON.parse(editor.state.doc.toString()));
-  } catch {
+  const requestText = editor.state.doc.toString();
+  if (parseJsonText(requestText) === undefined) {
     elements.error.textContent = "Fix the JSON before sending.";
     editor.focus();
     return;
   }
 
+  sending = true;
   elements.sendButton.disabled = true;
   elements.sendButton.textContent = "Sending…";
-  elements.responseStatus.textContent = "In flight";
+  showStatus("···", "pending", "In flight");
   elements.responseDuration.textContent = "";
 
   const started = performance.now();
@@ -89,51 +103,47 @@ async function sendRequest() {
     const response = await fetch("/v1/systemone", {
       method: "POST",
       headers,
-      body,
+      body: JSON.stringify(JSON.parse(requestText)),
     });
     const responseText = await response.text();
-    elements.responseStatus.textContent = `${response.status} ${response.ok ? "received" : "upstream error"}`;
-    elements.responseStatus.dataset.outcome = response.ok ? "success" : "error";
-    showResponse(responseText);
+    showStatus(String(response.status), response.ok ? "success" : "upstream_error", response.ok ? "Response" : "Upstream error");
+    showResponse(requestText, responseText, response.ok ? null : errorMessage(responseText));
   } catch (error) {
-    elements.responseStatus.textContent = "Network error";
-    elements.responseStatus.dataset.outcome = "error";
-    showResponse(error instanceof Error ? error.message : String(error));
-    setConnection(false);
+    showStatus("NET", "network_error", "Network error");
+    showResponse(requestText, null, error instanceof Error ? error.message : String(error));
+    setConnection(elements.connection, false);
   } finally {
     elements.responseDuration.textContent = formatDuration(performance.now() - started);
     elements.sendButton.disabled = false;
     elements.sendButton.textContent = "Send request";
+    sending = false;
   }
 }
 
-function showResponse(text) {
+function showStatus(code, outcome, title) {
+  elements.responseStatus.hidden = false;
+  elements.responseStatus.textContent = code;
+  elements.responseStatus.dataset.outcome = outcome;
+  elements.responseTitle.textContent = title;
+}
+
+function showResponse(requestText, responseText, failure) {
   elements.responseEmpty.hidden = true;
-  elements.responseOutput.hidden = false;
-  renderJson(elements.responseOutput, text);
+  elements.responseContent.hidden = false;
+  elements.capturesLink.hidden = false;
+  elements.responseError.hidden = failure === null;
+  elements.responseErrorMessage.textContent = failure ?? "";
+  const judgment = failure === null ? renderJudgment(requestText, responseText) : null;
+  elements.judgmentSection.hidden = judgment === null;
+  elements.judgment.replaceChildren(...(judgment ? [judgment] : []));
+  renderJson(elements.responseOutput, responseText ?? "No response");
 }
 
-function setConnection(online) {
-  elements.connection.classList.toggle("online", online);
-  elements.connection.classList.toggle("offline", !online);
-  elements.connectionLabel.textContent = online ? "Proxy ready" : "Proxy unavailable";
-}
-
-function renderJson(element, text) {
-  try {
-    element.textContent = JSON.stringify(JSON.parse(text), null, 2);
-    element.classList.add("language-json");
-    window.Prism?.highlightElement(element);
-  } catch {
-    element.classList.remove("language-json");
-    element.textContent = text;
-  }
-}
-
-function formatDuration(milliseconds) {
-  return milliseconds < 1000
-    ? `${Math.round(milliseconds)} ms`
-    : `${(milliseconds / 1000).toFixed(2)} s`;
+function errorMessage(text) {
+  const body = parseJsonText(text);
+  const message = body?.error?.message ?? body?.message ?? body?.detail;
+  if (message === undefined) return text || "The upstream returned an error without a body.";
+  return typeof message === "string" ? message : JSON.stringify(message, null, 2);
 }
 
 elements.sendButton.addEventListener("click", () => void sendRequest());
