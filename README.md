@@ -100,7 +100,7 @@ During development, use `bun run dev`. The captures and playground pages use Tai
 
 ## Payload retention
 
-SQLite retains exchanges for seven days. Expired exchanges and their dimensions are deleted automatically when the store opens and during normal reads and writes.
+SQLite retains exchanges for 90 days. Expired exchanges and their dimensions are deleted automatically when the store opens and during normal reads and writes.
 
 Do not share an export without reviewing it. Request state, question criteria, and answers are all included by design.
 
