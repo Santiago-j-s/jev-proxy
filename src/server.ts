@@ -78,7 +78,8 @@ async function routeRequest(context: RouteContext): Promise<Response> {
   const url = new URL(request.url);
 
   if (request.method === "GET" && url.pathname === "/api/health") {
-    return Response.json({ status: "ok" });
+    // Tells the dashboard whether replay is available and whether the playground needs a key.
+    return Response.json({ status: "ok", upstreamKeyConfigured: context.config.apiKey !== null });
   }
 
   if (request.method === "GET" && url.pathname === "/api/summary") {
@@ -92,7 +93,11 @@ async function routeRequest(context: RouteContext): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/exchanges") {
     const limit = readLimit(url.searchParams.get("limit"));
     const offset = readOffset(url.searchParams.get("offset"));
-    return Response.json({ exchanges: store.listExchanges(limit, offset, readExchangeFilters(url.searchParams)) });
+    const filters = readExchangeFilters(url.searchParams);
+    return Response.json({
+      exchanges: store.listExchanges(limit, offset, filters),
+      total: store.countExchanges(filters),
+    });
   }
 
   const exchangeRoute = matchExchangeRoute(url.pathname);
@@ -141,7 +146,9 @@ type UpstreamResult = {
   readonly body: Buffer;
 };
 
-async function captureSystemOne(input: CaptureInput): Promise<UpstreamResult> {
+type CapturedResult = UpstreamResult & { readonly exchangeId: string };
+
+async function captureSystemOne(input: CaptureInput): Promise<CapturedResult> {
   const id = randomUUID();
   const startedAt = new Date().toISOString();
   const started = performance.now();
@@ -196,6 +203,7 @@ async function captureSystemOne(input: CaptureInput): Promise<UpstreamResult> {
     }
 
     return {
+      exchangeId: id,
       status: upstreamResponse.status,
       headers: upstreamResponse.headers,
       body: responseBody,
@@ -238,7 +246,10 @@ async function replayExchange(context: RouteContext, id: string): Promise<Respon
     incomingHeaders: new Headers({ "content-type": "application/json" }),
     dimensions: { ...exchange.dimensions, replay_of: id },
   });
-  return upstreamResponse(result);
+  // Replay is a dashboard route, not the transparent /v1 proxy, so it may name the new exchange.
+  const response = upstreamResponse(result);
+  response.headers.set("x-jev-exchange-id", result.exchangeId);
+  return response;
 }
 
 async function passthrough(context: RouteContext, requestUrl: URL): Promise<Response> {
@@ -372,6 +383,7 @@ function readExchangeFilters(parameters: URLSearchParams): ExchangeFilters {
   return {
     app: parameters.get("app")?.trim() || null,
     feature: parameters.get("feature")?.trim() || null,
+    status: parameters.get("status") === "failed" ? "failed" : null,
   };
 }
 

@@ -153,8 +153,9 @@ test("filters before pagination and summarizes only matching app and feature", (
   });
 
   assert.deepEqual(store.listFilterValues(), { apps: ["alpha", "beta"], features: ["search", "sync"] });
-  assert.deepEqual(store.listExchanges(1, 0, { app: "alpha", feature: "search" }).map((item) => item.id), ["one"]);
-  assert.deepEqual(store.listExchanges(1, 1, { app: "alpha", feature: null }).map((item) => item.id), ["two"]);
+  assert.deepEqual(store.listExchanges(1, 0, { app: "alpha", feature: "search", status: null }).map((item) => item.id), ["one"]);
+  assert.deepEqual(store.listExchanges(1, 1, { app: "alpha", feature: null, status: null }).map((item) => item.id), ["two"]);
+  assert.equal(store.countExchanges({ app: "alpha", feature: null, status: null }), 2);
   assert.deepEqual(store.summarize({ app: "alpha", feature: "search" }), {
     exchangeCount: 1,
     successCount: 1,
@@ -168,5 +169,39 @@ test("filters before pagination and summarizes only matching app and feature", (
   assert.equal(store.summarize({ app: null, feature: "search" }).exchangeCount, 2);
   assert.equal(store.summarize({ app: "beta", feature: "sync" }).exchangeCount, 0);
   assert.equal(store.summarize().exchangeCount, 4);
+  store.close();
+});
+
+test("lists only failed exchanges for the failed status while summaries keep every outcome", () => {
+  const store = new ExchangeStore(":memory:");
+  for (const [index, id] of ["succeeded", "rejected", "unreachable", "waiting"].entries()) {
+    store.beginExchange({
+      id,
+      startedAt: new Date(Date.now() - index * 1_000).toISOString(),
+      method: "POST",
+      path: "/v1/systemone",
+      requestedModel: null,
+      questionCount: null,
+      requestBody: "{}",
+      dimensions: { app: "alpha" },
+    });
+  }
+  const finishedAt = new Date().toISOString();
+  store.completeExchange("succeeded", {
+    outcome: "success", finishedAt, durationMs: 10, httpStatus: 200, resolvedModel: null,
+    responseBody: "{}", upstreamRequestId: null, usage: null, cost: { status: "unknown", reason: "missing_usage" },
+  });
+  store.completeExchange("rejected", {
+    outcome: "upstream_error", finishedAt, durationMs: 10, httpStatus: 429, resolvedModel: null,
+    responseBody: "{}", upstreamRequestId: null, usage: null, cost: { status: "unknown", reason: "missing_usage" },
+  });
+  store.completeExchange("unreachable", { outcome: "network_error", finishedAt, durationMs: 10, errorMessage: "refused" });
+
+  const failed = { app: "alpha", feature: null, status: "failed" } as const;
+  assert.deepEqual(store.listExchanges(10, 0, failed).map((item) => item.id), ["rejected", "unreachable"]);
+  assert.equal(store.countExchanges(failed), 2);
+  assert.equal(store.countExchanges(), 4);
+  assert.equal(store.summarize({ app: "alpha", feature: null }).exchangeCount, 4);
+  assert.equal(store.summarize({ app: "alpha", feature: null }).errorCount, 2);
   store.close();
 });

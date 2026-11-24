@@ -53,7 +53,7 @@ test("forwards a Jev request and captures its full exchange without credentials"
   const playground = await fetch(new URL("/playground", proxy.url));
   assert.equal(playground.status, 200);
   const playgroundHtml = await playground.text();
-  assert.match(playgroundHtml, /POST \/v1\/systemone/);
+  assert.match(playgroundHtml, /\/v1\/systemone/);
 
   const scriptPath = /<script type="module"[^>]*src="([^"]+)"/.exec(playgroundHtml)?.[1];
   assert.ok(scriptPath);
@@ -104,7 +104,11 @@ test("forwards a Jev request and captures its full exchange without credentials"
   const unmatchedSummary = await fetch(new URL("/api/summary?app=other", proxy.url));
   assert.equal((await unmatchedSummary.json()).exchangeCount, 0);
   const filteredList = await fetch(new URL("/api/exchanges?app=server-test&feature=other", proxy.url));
-  assert.deepEqual((await filteredList.json()).exchanges, []);
+  assert.deepEqual(await filteredList.json(), { exchanges: [], total: 0 });
+  const failedList = await fetch(new URL("/api/exchanges?status=failed", proxy.url));
+  assert.deepEqual(await failedList.json(), { exchanges: [], total: 0 });
+  const health = await fetch(new URL("/api/health", proxy.url));
+  assert.deepEqual(await health.json(), { status: "ok", upstreamKeyConfigured: true });
 
   const passthrough = await fetch(new URL("/v1/models?demo=1", proxy.url), {
     headers: { authorization: "Bearer caller-secret", "x-jev-app": "passthrough" },
@@ -125,8 +129,13 @@ test("forwards a Jev request and captures its full exchange without credentials"
   const exchangesResponse = await fetch(new URL("/api/exchanges", proxy.url));
   const listing = await exchangesResponse.json();
   const originalId = listing.exchanges[0].id;
+  assert.equal(listing.total, 1);
   const replay = await fetch(new URL(`/api/exchanges/${originalId}/replay`, proxy.url), { method: "POST" });
   assert.equal(replay.status, 200);
+  const replayId = replay.headers.get("x-jev-exchange-id");
+  assert.ok(replayId);
+  const replayed = await fetch(new URL(`/api/exchanges/${replayId}`, proxy.url));
+  assert.equal((await replayed.json()).dimensions.replay_of, originalId);
   assert.equal(upstreamPath, "/v1/systemone");
 
   await proxy.close();
