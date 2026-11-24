@@ -77,7 +77,10 @@ function renderAnswer(answer) {
   }
   if (answer?.type === "choice" && isObject(answer.probabilities)) {
     const options = numericEntries(answer.probabilities).sort((left, right) => right[1] - left[1]);
+    // Ties can push the returned choice past the cutoff; it must always be visible.
     const shown = options.slice(0, 6);
+    const chosen = options.find(([label]) => label === answer.choice);
+    if (chosen && !shown.includes(chosen)) shown.splice(shown.length - 1, 1, chosen);
     return h("div", "grid gap-1",
       ...shown.map(([label, probability]) => probabilityBar(label, probability, label === answer.choice)),
       options.length > shown.length
@@ -86,7 +89,8 @@ function renderAnswer(answer) {
       confidenceText(answer.confidence),
     );
   }
-  if (answer?.type === "score" && isObject(answer.probabilities)) {
+  if (answer?.type === "score" && isObject(answer.probabilities)
+    && Object.keys(answer.probabilities).every((level) => /^\d+$/.test(level))) {
     // `score` is the expected level (e.g. 1.48), so show it alongside every level in scale order.
     const legend = isObject(answer.legend) ? answer.legend : {};
     const levels = numericEntries(answer.probabilities).sort((left, right) => Number(left[0]) - Number(right[0]));

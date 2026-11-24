@@ -53,5 +53,11 @@ function readUpstreamUrl(value: string | undefined): URL {
 
 function readOptionalSecret(value: string | undefined): string | null {
   const secret = value?.trim();
-  return secret === undefined || secret === "" ? null : secret;
+  if (secret === undefined || secret === "") return null;
+  // Header APIs echo invalid values in their errors, which would surface the key in
+  // responses and captures. Reject it here, without repeating it.
+  if (!/^[\x21-\x7e]+$/.test(secret)) {
+    throw new Error("TYPESAFE_API_KEY contains whitespace or non-printable characters");
+  }
+  return secret;
 }
