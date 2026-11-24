@@ -77,13 +77,13 @@ test("an empty store has a zero summary", () => {
   store.close();
 });
 
-test("retains only exchanges from the last seven days", () => {
+test("retains only exchanges from the last 90 days", () => {
   let now = new Date("2026-09-20T12:00:00.000Z");
   const store = new ExchangeStore(":memory:", () => now);
 
   store.beginExchange({
     id: "boundary",
-    startedAt: "2026-09-13T12:00:00.000Z",
+    startedAt: "2026-06-22T12:00:00.000Z",
     method: "POST",
     path: "/v1/systemone",
     requestedModel: "jev-1.13.0",

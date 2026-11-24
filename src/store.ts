@@ -14,7 +14,7 @@ import type {
 import { PRICING_RULES } from "./pricing.js";
 
 type SqlRow = Record<string, unknown>;
-const RETENTION_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
+const RETENTION_MILLISECONDS = 90 * 24 * 60 * 60 * 1000;
 const MATCH_DIMENSIONS = `
   (? IS NULL OR EXISTS (
     SELECT 1 FROM exchange_dimensions app
